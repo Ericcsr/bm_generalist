@@ -5,11 +5,14 @@ from typing import TYPE_CHECKING
 
 from isaaclab.utils.math import matrix_from_quat, subtract_frame_transforms
 
-from whole_body_tracking.tasks.tracking.mdp.commands import MotionCommand
+from whole_body_tracking.tasks.tracking.mdp.commands import MotionCommand, MultiMotionCommand
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
+def command_lookahead(env: ManagerBasedEnv, command_name: str) -> torch.Tensor:
+    command = MultiMotionCommand = env.command_manager.get_term(command_name)
+    return command.command_lookahead
 
 def robot_anchor_ori_w(env: ManagerBasedEnv, command_name: str) -> torch.Tensor:
     command: MotionCommand = env.command_manager.get_term(command_name)

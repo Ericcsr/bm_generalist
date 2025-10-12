@@ -399,7 +399,6 @@ class MultiMotionCommand(CommandTerm):
         self.time_steps = self.motion.motion_start_idx[self.motion_ids]
 
         self.look_ahead_steps_init = (torch.arange(self.cfg.look_ahead_frames,device=self.device, dtype=torch.long)*self.cfg.look_ahead_frame_skips).view(1,-1).repeat(self.num_envs, 1)
-        self.future_motion_ids = self.motion_ids.repeat_interleave(self.cfg.look_ahead_frames)
 
         self.body_pos_relative_w = torch.zeros(self.num_envs, len(cfg.body_names), 3, device=self.device)
         self.body_quat_relative_w = torch.zeros(self.num_envs, len(cfg.body_names), 4, device=self.device)
@@ -430,12 +429,24 @@ class MultiMotionCommand(CommandTerm):
         return torch.cat([self.joint_pos, self.joint_vel], dim=1)
 
     @property
+    def command_lookahead(self) -> torch.Tensor:
+        return torch.cat([self.joint_pos_lookahead, self.joint_vel_lookahead],dim=1)
+
+    @property
     def joint_pos(self) -> torch.Tensor:
         return self.motion.joint_pos[self.time_steps]
 
     @property
     def joint_vel(self) -> torch.Tensor:
         return self.motion.joint_vel[self.time_steps]
+
+    @property
+    def joint_pos_lookahead(self) -> torch.Tensor:
+        return self.motion.joint_pos[self.future_time_steps].view(self.num_envs,-1)
+
+    @property
+    def joint_vel_lookahead(self) -> torch.Tensor:
+        return self.motion.joint_vel[self.future_time_steps].view(self.num_envs,-1)
 
     @property
     def body_pos_w(self) -> torch.Tensor:
@@ -511,7 +522,8 @@ class MultiMotionCommand(CommandTerm):
 
     @property
     def future_time_steps(self) -> torch.Tensor:
-        return torch.clip(self.look_ahead_steps_init + self.time_steps[:,None], max=self.motion.motion_end_idx-1).flatten().long()
+        return torch.clip(self.look_ahead_steps_init + self.time_steps[:,None], 
+                          max=self.motion.motion_end_idx[self.motion_ids][:,None]-1).flatten().long()
 
     def _update_metrics(self):
         self.metrics["error_anchor_pos"] = torch.norm(self.anchor_pos_w - self.robot_anchor_pos_w, dim=-1)
@@ -744,8 +756,8 @@ class MultiMotionCommandCfg(CommandTermCfg):
     adaptive_uniform_ratio: float = 0.1
     adaptive_alpha: float = 0.001
 
-    look_ahead_frames = 1
-    look_ahead_frame_skips = 1
+    look_ahead_frames = 5
+    look_ahead_frame_skips = 5
 
     anchor_visualizer_cfg: VisualizationMarkersCfg = FRAME_MARKER_CFG.replace(prim_path="/Visuals/Command/pose")
     anchor_visualizer_cfg.markers["frame"].scale = (0.2, 0.2, 0.2)

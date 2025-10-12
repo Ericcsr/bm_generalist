@@ -9,11 +9,15 @@
 
 import argparse
 import sys
+import os
 
 from isaaclab.app import AppLauncher
 
 # local imports
 import cli_args  # isort: skip
+
+script_path = os.path.realpath(__file__)
+current_file_directory = os.path.dirname(script_path)
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Train an RL agent with RSL-RL.")
@@ -25,6 +29,7 @@ parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
 parser.add_argument("--max_iterations", type=int, default=None, help="RL Policy training iterations.")
 parser.add_argument("--registry_name", type=str, required=True, help="The name of the wand registry.")
+parser.add_argument("--motion_dir", type=str, required=True, default="lafan")
 
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
@@ -96,9 +101,11 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     import wandb
 
-    api = wandb.Api()
-    artifact = api.artifact(registry_name)
-    env_cfg.commands.motion.motion_file = str(pathlib.Path(artifact.download()) / "motion.npz")
+    #api = wandb.Api()
+    #artifact = api.artifact(registry_name)
+    # env_cfg.commands.motion.motion_file = str(pathlib.Path(artifact.download()) / "motion.npz")
+    motion_files = [args_cli.motion_dir+"/"+x for x in os.listdir(args_cli.motion_dir)]
+    env_cfg.commands.motion.motion_files = motion_files
 
     # specify directory for logging experiments
     log_root_path = os.path.join("logs", "rsl_rl", agent_cfg.experiment_name)

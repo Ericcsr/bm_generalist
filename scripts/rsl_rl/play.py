@@ -19,7 +19,7 @@ parser.add_argument(
 )
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
-parser.add_argument("--motion_file", type=str, default=None, help="Path to the motion file.")
+parser.add_argument("--motion_dir", type=str, default="lafan", help="Path to the motion dir.")
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
 # append AppLauncher cli args
@@ -111,6 +111,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         print(f"[INFO]: Loading model checkpoint from: {resume_path}")
 
     # create isaac environment
+    motion_files = [args_cli.motion_dir+"/"+x for x in os.listdir(args_cli.motion_dir)]
+    env_cfg.commands.motion.motion_files = motion_files
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
 
     log_dir = os.path.dirname(resume_path)

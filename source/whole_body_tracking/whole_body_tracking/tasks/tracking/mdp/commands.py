@@ -60,7 +60,10 @@ class MotionLoader:
 class MultiMotionLoader:
     def __init__(self, motion_files: list[str], body_indexes: Sequence[int], device: str = "cpu"):
         assert os.path.isfile(motion_files[0]), f"Invalid file path: {motion_files[0]}"
-        datas = [np.load(motion_file) for motion_file in motion_files]
+        try:
+            datas = [np.load(motion_file) for motion_file in motion_files]
+        except:
+            breakpoint()
         self.time_step_total = sum([data["joint_pos"].shape[0] for data in datas])
         self.motion_start_idx = torch.tensor(([0] + [data["joint_pos"].shape[0] for data in datas])[:-1], dtype=torch.long, device=device).cumsum(dim=0)
         self.motion_end_idx = torch.tensor([data["joint_pos"].shape[0] for data in datas], dtype=torch.long, device=device).cumsum(dim=0)
@@ -247,7 +250,7 @@ class MotionCommand(CommandTerm):
             self._current_bin_failed[:] = torch.bincount(fail_bins, minlength=self.bin_count)
 
         # Sample
-        sampling_probabilities = self.bin_failed_count + self.cfg.adaptive_uniform_ratio / float(self.bin_count)
+        sampling_probabilities = self.bin_failed_count #+ self.cfg.adaptive_uniform_ratio / float(self.bin_count)
         sampling_probabilities = torch.nn.functional.pad(
             sampling_probabilities.unsqueeze(0).unsqueeze(0),
             (0, self.cfg.adaptive_kernel_size - 1),  # Non-causal kernel
@@ -255,7 +258,8 @@ class MotionCommand(CommandTerm):
         )
         sampling_probabilities = torch.nn.functional.conv1d(sampling_probabilities, self.kernel.view(1, 1, -1)).view(-1)
 
-        sampling_probabilities = sampling_probabilities / sampling_probabilities.sum()
+        sampling_probabilities = (sampling_probabilities / sampling_probabilities.sum()) * (1-self.cfg.adaptive_uniform_ratio)
+        sampling_probabilities += self.cfg.adaptive_uniform_ratio / float(self.bin_count) # correct implementation
 
         sampled_bins = torch.multinomial(sampling_probabilities, len(env_ids), replacement=True)
 
@@ -558,7 +562,7 @@ class MultiMotionCommand(CommandTerm):
             self._current_bin_failed[:] = torch.bincount(fail_bins, minlength=self.bin_count)
 
         # Sample
-        sampling_probabilities = self.bin_failed_count + self.cfg.adaptive_uniform_ratio / float(self.bin_count)
+        sampling_probabilities = self.bin_failed_count #+ self.cfg.adaptive_uniform_ratio / float(self.bin_count)
         sampling_probabilities = torch.nn.functional.pad(
             sampling_probabilities.unsqueeze(0).unsqueeze(0),
             (0, self.cfg.adaptive_kernel_size - 1),  # Non-causal kernel
@@ -566,7 +570,9 @@ class MultiMotionCommand(CommandTerm):
         )
         sampling_probabilities = torch.nn.functional.conv1d(sampling_probabilities, self.kernel.view(1, 1, -1)).view(-1)
 
-        sampling_probabilities = sampling_probabilities / sampling_probabilities.sum()
+        sampling_probabilities = (sampling_probabilities / (sampling_probabilities.sum()+1e-8)) * (1-self.cfg.adaptive_uniform_ratio)
+        sampling_probabilities += self.cfg.adaptive_uniform_ratio / float(self.bin_count) # correct implementation
+        
 
         sampled_bins = torch.multinomial(sampling_probabilities, len(env_ids), replacement=True)
 

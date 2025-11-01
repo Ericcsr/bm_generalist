@@ -24,7 +24,7 @@ def export_motion_policy_as_onnx(
 ):
     if not os.path.exists(path):
         os.makedirs(path, exist_ok=True)
-    policy_exporter = _OnnxMotionPolicyExporter(env, actor_critic, normalizer, verbose)
+    policy_exporter = _OnnxGeneralistPolicyExporter(env, actor_critic, normalizer, verbose)
     policy_exporter.export(path, filename)
 
 
@@ -77,6 +77,32 @@ class _OnnxMotionPolicyExporter(_OnnxPolicyExporter):
             dynamic_axes={},
         )
 
+class _OnnxGeneralistPolicyExporter(_OnnxPolicyExporter):
+    def __init__(self, env: ManagerBasedRLEnv, actor_critic, normalizer=None, verbose=False):
+        super().__init__(actor_critic, normalizer, verbose)
+
+    def forward(self, x, time_step):
+        return (
+            self.actor(self.normalizer(x)),
+        )
+
+    def export(self, path, filename):
+        self.to("cpu")
+        obs = torch.zeros(1, self.actor[0].in_features)
+        time_step = torch.zeros(1, 1)
+        torch.onnx.export(
+            self,
+            (obs, time_step),
+            os.path.join(path, filename),
+            export_params=True,
+            opset_version=11,
+            verbose=self.verbose,
+            input_names=["obs", "time_step"],
+            output_names=[
+                "actions"
+            ],
+            dynamic_axes={},
+        )
 
 def list_to_csv_str(arr, *, decimals: int = 3, delimiter: str = ",") -> str:
     fmt = f"{{:.{decimals}f}}"

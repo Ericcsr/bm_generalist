@@ -100,6 +100,7 @@ class CommandsCfg:
     motion = mdp.MultiMotionCommandCfg(
         asset_name="robot",
         resampling_time_range=(1.0e9, 1.0e9),
+        adaptive_uniform_ratio=0.5,
         debug_vis=True,
         pose_range={
             "x": (-0.05, 0.05),
@@ -131,9 +132,9 @@ class ObservationsCfg:
         # observation terms (order preserved)
         command = ObsTerm(func=mdp.generated_commands, params={"command_name": "motion"})
         #command = ObsTerm(func=mdp.command_lookahead, params={"command_name":"motion"})
-        motion_anchor_pos_b = ObsTerm(
-            func=mdp.motion_anchor_pos_b, params={"command_name": "motion"}, noise=Unoise(n_min=-0.5, n_max=0.5)
-        )
+        # motion_anchor_pos_b = ObsTerm(
+        #     func=mdp.motion_anchor_pos_b, params={"command_name": "motion"}, noise=Unoise(n_min=-0.5, n_max=0.5)
+        # )
         motion_anchor_ori_b = ObsTerm(
             func=mdp.motion_anchor_ori_b, params={"command_name": "motion"}, noise=Unoise(n_min=-0.05, n_max=0.05)
         )
@@ -310,7 +311,7 @@ class TrackingEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the locomotion velocity-tracking environment."""
 
     # Scene settings
-    scene: MySceneCfg = MySceneCfg(num_envs=8192, env_spacing=2.5)
+    scene: MySceneCfg = MySceneCfg(num_envs=4096, env_spacing=2.5)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()

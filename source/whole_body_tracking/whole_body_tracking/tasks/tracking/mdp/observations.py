@@ -3,7 +3,7 @@ from __future__ import annotations
 import torch
 from typing import TYPE_CHECKING
 
-from isaaclab.utils.math import matrix_from_quat, subtract_frame_transforms
+from isaaclab.utils.math import matrix_from_quat, subtract_frame_transforms, quat_apply, quat_inv
 
 from whole_body_tracking.tasks.tracking.mdp.commands import MotionCommand, MultiMotionCommand
 
@@ -19,6 +19,10 @@ def robot_anchor_ori_w(env: ManagerBasedEnv, command_name: str) -> torch.Tensor:
     mat = matrix_from_quat(command.robot_anchor_quat_w)
     return mat[..., :2].reshape(mat.shape[0], -1)
 
+def projected_gravity(env: ManagerBasedEnv, command_name: str) -> torch.Tensor:
+    command: MotionCommand = env.command_manager.get_term(command_name)
+    grav_dir = quat_apply(quat_inv(command.robot_anchor_quat_w), command.down_dir)
+    return grav_dir.view(env.num_envs, -1)
 
 def robot_anchor_lin_vel_w(env: ManagerBasedEnv, command_name: str) -> torch.Tensor:
     command: MotionCommand = env.command_manager.get_term(command_name)

@@ -163,9 +163,9 @@ class MotionLoader:
                 self.motion_dof_poss_inputs[i][index_0],
                 self.motion_dof_poss_inputs[i][index_1],
                 blend.unsqueeze(1),
-            )
+            ))
             print(
-                f"Motion interpolated, input frames: {self.input_frames_buffer[i]}, input fps: {self.input_fps}, output frames:"
+                f"Motion {i} interpolated, input frames: {self.input_frames_buffer[i]}, input fps: {self.input_fps}, output frames:"
                 f" {self.output_frames_buffer[i]}, output fps: {self.output_fps}"
             )
 
@@ -182,10 +182,10 @@ class MotionLoader:
 
     def _compute_frame_blend(self, times: torch.Tensor) -> torch.Tensor:
         """Computes the frame blend for the motion."""
-        phase = times / self.duration
-        index_0 = (phase * (self.input_frames - 1)).floor().long()
-        index_1 = torch.minimum(index_0 + 1, torch.tensor(self.input_frames - 1))
-        blend = phase * (self.input_frames - 1) - index_0
+        phase = times / self.duration_buffer[self.traj_id]
+        index_0 = (phase * (self.input_frames_buffer[self.traj_id] - 1)).floor().long()
+        index_1 = torch.minimum(index_0 + 1, torch.tensor(self.input_frames_buffer[self.traj_id] - 1))
+        blend = phase * (self.input_frames_buffer[self.traj_id] - 1) - index_0
         return index_0, index_1, blend
 
     def _compute_velocities(self):
@@ -195,8 +195,8 @@ class MotionLoader:
         self.motion_base_ang_vels_buffer = []
         for i in range(self.num_motions):
             self.motion_base_lin_vels_buffer.append(torch.gradient(self.motion_base_poss_buffer[i], spacing=self.output_dt, dim=0)[0])
-            self.motion_dof_vels_buffer.append(torch.gradient(self.motion_dof_poss_buffer, spacing=self.output_dt, dim=0)[0])
-            self.motion_base_ang_vels_buffer.append(self._so3_derivative(self.motion_base_rots_buffer, self.output_dt))
+            self.motion_dof_vels_buffer.append(torch.gradient(self.motion_dof_poss_buffer[i], spacing=self.output_dt, dim=0)[0])
+            self.motion_base_ang_vels_buffer.append(self._so3_derivative(self.motion_base_rots_buffer[i], self.output_dt))
 
     def _so3_derivative(self, rotations: torch.Tensor, dt: float) -> torch.Tensor:
         """Computes the derivative of a sequence of SO3 rotations.
@@ -235,7 +235,7 @@ class MotionLoader:
         )
         self.current_idx += 1
         reset_flag = False
-        if self.current_idx >= self.output_frames:
+        if self.current_idx >= self.output_frames_buffer[self.traj_id]:
             self.current_idx = 0
             reset_flag = True
         return state, reset_flag
@@ -273,7 +273,10 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene, joi
         "body_ang_vel_w": [],
     }
     # --------------------------------------------------------------------------
-
+    # make output directory if not exist
+    import os
+    if not os.path.exists(args_cli.output_name):
+        os.makedirs(args_cli.output_name)
     # Simulation loop
     while simulation_app.is_running():
         (

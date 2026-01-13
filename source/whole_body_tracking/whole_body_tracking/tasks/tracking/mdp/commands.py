@@ -430,6 +430,31 @@ class MultiMotionCommand(CommandTerm):
 
         self.down_dir = torch.tensor([0.0, 0.0, -1.0], dtype=torch.float32, device=self.device).view(1,-1,3).repeat(self.num_envs, 1, 1)
 
+        # Force push related
+        self.force_update_frequency = self.cfg.force_update_frequency
+        self.max_force = self.cfg.max_force
+        self.num_bodies = len(self.cfg.body_names)
+        self.body_force_dir_buf = torch.randn(self.num_envs, self.num_bodies, 3, dtype=torch.float, device=self.device, requires_grad=False)
+        self.body_force_dir_buf /= torch.norm(self.body_force_dir_buf, dim=-1, keepdim=True) # normalize
+        self.body_force_magnitude_buf = torch.rand(self.num_envs, dtype=torch.float, device=self.device, requires_grad=False) # [0, 1]
+
+        self.force_push_counter = torch.zeros(self.num_envs, dtype=torch.int, device=self.device)
+        self.force_duration_per_env = torch.zeros(self.num_envs, dtype=torch.int, device=self.device)
+        self.force_config_init = False
+        self.force_push_ids = self.robot.find_bodies(self.cfg.force_push_body, preserve_order=True)[0]
+        self.non_force_push_ids_rel = []
+        self.force_push_ids_rel = []
+        for i, idx in enumerate(self.body_indexes.tolist()):
+            if idx not in self.force_push_ids:
+                self.non_force_push_ids_rel.append(i)
+            else:
+                self.force_push_ids_rel.append(i)
+        
+        self.force_push_body_offsets = torch.tensor(self.cfg.force_push_body_offset, dtype=torch.float32, device=self.device).view(1,-1,3).repeat(self.num_envs, 1, 1)
+        self.last_force_applied = torch.zeros(self.num_envs, len(self.force_push_ids), 3, dtype=torch.float, device=self.device, requires_grad=False)
+
+        self.metrics["force applied"] = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
+
     @property
     def command(self) -> torch.Tensor:  # TODO Consider again if this is the best observation
         return torch.cat([self.joint_pos, self.joint_vel], dim=1)
@@ -553,6 +578,8 @@ class MultiMotionCommand(CommandTerm):
 
         self.metrics["error_joint_pos"] = torch.norm(self.joint_pos - self.robot_joint_pos, dim=-1)
         self.metrics["error_joint_vel"] = torch.norm(self.joint_vel - self.robot_joint_vel, dim=-1)
+
+        self.metrics["force_applied"] = torch.norm(self.last_force_applied, dim=-1).mean(dim=-1)
 
     def _adaptive_sampling(self, env_ids: Sequence[int]):
         episode_failed = self._env.termination_manager.terminated[env_ids]
@@ -772,3 +799,9 @@ class MultiMotionCommandCfg(CommandTermCfg):
 
     body_visualizer_cfg: VisualizationMarkersCfg = FRAME_MARKER_CFG.replace(prim_path="/Visuals/Command/pose")
     body_visualizer_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
+
+    force_update_frequency: int = 100
+    max_force: float = 20.0
+
+    force_push_body: list[str] = ["left_wrist_yaw_link", "right_wrist_yaw_link"] # default only two wrists
+    force_push_body_offset: list[list[float]] = [[0.18, -0.025, 0.0],[0.18, +0.025, 0.0]]

@@ -211,6 +211,16 @@ class EventCfg:
         params={"velocity_range": VELOCITY_RANGE},
     )
 
+    # force push robot
+    force_push_robot = EventTerm(
+        func=mdp.force_based_push,
+        mode="interval",
+        interval_range_s=(0.02, 0.02),
+        params={"force_duration": [50,100],
+                "command_name": "motion",
+                "asset_cfg": SceneEntityCfg("robot", joint_names=[".*"])},
+    )
+
 
 @configclass
 class RewardsCfg:

@@ -7,6 +7,7 @@ import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation
 from isaaclab.envs.mdp.events import _randomize_prop_by_op
 from isaaclab.managers import SceneEntityCfg
+from whole_body_tracking.tasks.tracking.mdp.commands import MotionCommand, MultiMotionCommand
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -91,3 +92,62 @@ def randomize_rigid_body_com(
 
     # Set the new coms
     asset.root_physx_view.set_coms(coms, env_ids)
+
+def _phase_to_weight_pyramid(phase, start=0.25, end=0.75):
+    weight = torch.zeros_like(phase)
+    mask1 = phase < start
+    mask2 = phase > end
+    weight[mask1] = 1/start * phase[mask1]
+    weight[mask2] = 1/(1-end) * (1 - phase[mask2])
+    weight[~(mask1 | mask2)] = 1.0
+    return weight    
+
+def force_based_push(
+    env: ManagerBasedEnv,
+    env_ids: torch.Tensor,
+    force_duration: tuple[int, int],
+    command_name: str,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+):
+    """Randomize the external forces and torques applied to the bodies.
+
+    This function creates a set of random forces and torques sampled from the given ranges. The number of forces
+    and torques is equal to the number of bodies times the number of environments. The forces and torques are
+    applied to the bodies by calling ``asset.set_external_force_and_torque``. The forces and torques are only
+    applied when ``asset.write_data_to_sim()`` is called in the environment.
+    """
+    # extract the used quantities (to enable type-hinting)
+    command : MotionCommand = env.command_manager.get_term(command_name)
+    
+    # Mask update stuff
+    mask_update = (command.force_push_counter >= command.force_update_frequency)
+    if command.force_config_init == False:
+        command.force_duration_per_env = torch.randint(*force_duration, (command.num_envs,), dtype=torch.int, device=command.device)
+        command.force_config_init = True
+    mask_finish_update = (command.force_push_counter == (command.force_duration_per_env + command.force_update_frequency))
+    phase = ((command.force_push_counter - command.force_update_frequency) / command.force_duration_per_env).clamp(min=0.0, max=1.0)
+    forces = torch.zeros_like(command.body_force_dir_buf)
+    # NOTE: all body force magnitude updated at once!!
+    command.body_force_magnitude_buf[mask_finish_update] = torch.rand(sum(mask_finish_update), device=command.device)
+    if (mask_update == False).all():
+        command.force_push_counter[:] += 1
+        return
+    
+    forces[mask_update] = command.body_force_magnitude_buf[mask_update].view(-1,1,1) * _phase_to_weight_pyramid(phase)[mask_update].view(-1,1,1) * command.body_force_dir_buf[mask_update] * command.max_force
+    forces[:,command.non_force_push_ids_rel,:] = 0.0 # zero out non-force bodies
+    command.force_push_counter[mask_finish_update] = 0
+    command.force_duration_per_env[mask_finish_update] = torch.randint(*force_duration, (sum(mask_finish_update),), dtype=torch.int, device=command.device)
+    command.body_force_dir_buf[mask_finish_update] = torch.randn_like(command.body_force_dir_buf[mask_finish_update])
+    command.body_force_dir_buf /= torch.norm(command.body_force_dir_buf, dim=-1, keepdim=True) # normalize
+    
+    
+    asset = env.scene[asset_cfg.name]
+
+    # sample random forces and torques
+    torques = torch.zeros_like(forces[:,command.force_push_ids_rel,:])
+    # set the forces and torques into the buffers
+    # note: these are only applied when you call: `asset.write_data_to_sim()`
+    positions = command.robot.data.body_pos_w[:,command.force_push_ids] + math_utils.quat_apply(command.robot.data.body_quat_w[:,command.force_push_ids], command.force_push_body_offsets)
+    command.last_force_applied = forces[:, command.force_push_ids_rel, :].clone()
+    command.force_push_counter[:] += 1
+    asset.set_external_force_and_torque(forces[:,command.force_push_ids_rel,:], torques, positions=positions, body_ids=command.force_push_ids, is_global=True)

@@ -6,7 +6,7 @@ pip install 'isaacsim[all,extscache]==4.5.0' --extra-index-url https://pypi.nvid
 cd ..
 git clone git@github.com:isaac-sim/IsaacLab.git
 cd IsaacLab
-git checkout v2.1.0
+git checkout v2.2.0
 sudo apt install cmake build-essential
 ./isaaclab.sh -i
 cd ../bm_generalist

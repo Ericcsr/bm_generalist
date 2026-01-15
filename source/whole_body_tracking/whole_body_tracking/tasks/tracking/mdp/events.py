@@ -151,3 +151,50 @@ def force_based_push(
     command.last_force_applied = forces[:, command.force_push_ids_rel, :].clone()
     command.force_push_counter[:] += 1
     asset.set_external_force_and_torque(forces[:,command.force_push_ids_rel,:], torques, positions=positions, body_ids=command.force_push_ids, is_global=True)
+
+
+def fake_contact_force(
+        env: ManagerBasedEnv,
+        env_ids: torch.Tensor,
+        command_name: str,
+        distance_threshold: float = 0.05,
+        contact_spring_k: float = 1000.0,
+        min_friction_coeff: float = 0.5,
+        squeeze_force_range: tuple[float, float] = (5.0, 20.0),
+        asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+):
+    command: MotionCommand = env.command_manager.get_term(command_name)
+    
+    wrist_pos_ref = command.vr_3point_body_pos_w[:,:2]
+    root_pos_ref = command.anchor_pos_w
+    root_orn_ref = command.anchor_quat_w.view(env.num_envs, 1, 4).repeat(1, 2, 1)
+    robot_root_pos = command.robot_anchor_pos_w
+    robot_root_orn = command.robot_anchor_quat_w.view(env.num_envs, 1, 4).repeat(1, 2, 1)
+    wrist_pos_ref_l = wrist_pos_ref - root_pos_ref[:,None,:]
+    wrist_pos_ref_l = math_utils.quat_apply(math_utils.quat_inv(root_orn_ref), wrist_pos_ref_l)
+    wrist_pos_ref_wr = math_utils.quat_apply(robot_root_orn, wrist_pos_ref_l) + robot_root_pos[:,None,:]
+    l_dir = wrist_pos_ref_wr[:,0] - wrist_pos_ref_wr[:,1] # shape [envs, 3]
+    l_dir = l_dir / torch.norm(l_dir, dim=-1, keepdim=True)
+    r_dir = - l_dir
+    
+    robot_wrist_pos = command.robot_vr_3point_pos_w[:,:2]
+    o2r = robot_wrist_pos - wrist_pos_ref_wr
+    dist2o = torch.norm(o2r, dim=-1)
+    contact_mask = (dist2o[:,0] < distance_threshold) * (dist2o[:,1] < distance_threshold) * command.wrist_grasp_label
+    last_non_contact_mask = command.last_force_applied[:, :2].norm(dim=-1).sum(dim=-1) < 1e-3
+    magnitude_update_mask = contact_mask & last_non_contact_mask
+    command.body_force_magnitude_buf[magnitude_update_mask] = torch.rand(sum(magnitude_update_mask), device=command.device) * (squeeze_force_range[1] - squeeze_force_range[0]) + squeeze_force_range[0]
+    
+    l_sp_dist = (o2r[:,0]*(-l_dir)).sum(dim=-1).clamp(min=0.0)
+    r_sp_dist = (o2r[:,1]*(-r_dir)).sum(dim=-1).clamp(min=0.0)
+    l_normal_force = l_dir * (command.body_force_magnitude_buf + l_sp_dist * contact_spring_k)[:, None]
+    r_normal_force = r_dir * (command.body_force_magnitude_buf + r_sp_dist * contact_spring_k)[:, None]
+    total_force = torch.stack([l_normal_force, r_normal_force], dim=1) # shape [envs, 2, 3]
+    g_force = command.down_dir * min_friction_coeff * command.body_force_magnitude_buf[:, None, None]
+    total_force += g_force
+    total_force[~contact_mask] = 0.0 # zero out non-contact envs
+    command.last_force_applied[:,:2] = total_force.clone()
+    asset = env.scene[asset_cfg.name]
+
+    asset.set_external_force_and_torque(total_force, torch.zeros_like(total_force), positions=robot_wrist_pos, body_ids=command.force_push_ids[:2], is_global=True)
+

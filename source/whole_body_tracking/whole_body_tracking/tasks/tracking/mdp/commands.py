@@ -58,7 +58,7 @@ class MotionLoader:
         return self._body_ang_vel_w[:, self._body_indexes]
 
 class MultiMotionLoader:
-    def __init__(self, motion_files: list[str], body_indexes: Sequence[int], device: str = "cpu"):
+    def __init__(self, motion_files: list[str], body_indexes: Sequence[int], has_wrist_grasp_label: bool, device: str = "cpu"):
         assert os.path.isfile(motion_files[0]), f"Invalid file path: {motion_files[0]}"
         try:
             datas = [np.load(motion_file) for motion_file in motion_files]
@@ -77,6 +77,8 @@ class MultiMotionLoader:
         self._body_lin_vel_w = torch.tensor(np.concatenate([data["body_lin_vel_w"] for data in datas], axis=0), dtype=torch.float32, device=device)
         self._body_ang_vel_w = torch.tensor(np.concatenate([data["body_ang_vel_w"] for data in datas], axis=0), dtype=torch.float32, device=device)
         self._body_indexes = body_indexes
+        if has_wrist_grasp_label:
+            self._wrist_grasp_label = torch.tensor(np.concatenate([data["wrist_grasp_label"] for data in datas], axis=0), dtype=torch.bool, device=device)
 
     @property
     def body_pos_w(self) -> torch.Tensor:
@@ -93,6 +95,13 @@ class MultiMotionLoader:
     @property
     def body_ang_vel_w(self) -> torch.Tensor:
         return self._body_ang_vel_w[:, self._body_indexes]
+    
+    @property
+    def wrist_grasp_label(self) -> torch.Tensor:
+        if hasattr(self, '_wrist_grasp_label'):
+            return self._wrist_grasp_label
+        else:
+            assert False, "No wrist grasp label in the motion data!"
 
 class MotionCommand(CommandTerm):
     cfg: MotionCommandCfg
@@ -397,7 +406,7 @@ class MultiMotionCommand(CommandTerm):
             self.robot.find_bodies(self.cfg.body_names, preserve_order=True)[0], dtype=torch.long, device=self.device
         )
 
-        self.motion = MultiMotionLoader(self.cfg.motion_files, self.body_indexes, device=self.device)
+        self.motion = MultiMotionLoader(self.cfg.motion_files, self.body_indexes, device=self.device, has_wrist_grasp_label=self.cfg.has_wrist_grasp_label)
         self.motion_ids = torch.randint(0, self.motion.num_motions, (self.num_envs,), device=self.device)
         #self.time_steps = torch.zeros(self.num_envs, dtype=torch.long, device=self.device) # Should be random
         self.time_steps = self.motion.motion_start_idx[self.motion_ids]
@@ -416,6 +425,16 @@ class MultiMotionCommand(CommandTerm):
         )
         self.kernel = self.kernel / self.kernel.sum()
 
+        # Add vr 3point related terms
+        self.vr_3point_body_indices = [self.robot.body_names.index(name) for name in self.cfg.vr_3point_body]
+        self.vr_3point_body_indices_motion = [self.cfg.body_names.index(name) for name in self.cfg.vr_3point_body]
+        self.vr_3point_body_offsets = torch.tensor(self.cfg.vr_3point_body_offset, dtype=torch.float32, device=self.device).view(1,-1,3).repeat(self.num_envs, 1, 1)
+
+        self.isaaclab_to_mujoco_dof= [0, 3, 6, 9, 13, 17, 1, 4, 7, 10, 14, 18, 2, 5, 8, 11, 15, 19, 21, 23, 25, 27, 12, 16, 20, 22, 24, 26, 28]
+        self.mujoco_to_isaaclab_dof= [0, 6, 12, 1, 7, 13, 2, 8, 14, 3, 9, 15, 22, 4, 10, 16, 23, 5, 11, 17, 24, 18, 25, 19, 26, 20, 27, 21, 28]
+        self.lower_joint_indices_mujoco = list(range(12))
+        self.lower_joint_isaaclab_indices = [self.isaaclab_to_mujoco_dof[i] for i in self.lower_joint_indices_mujoco]
+
         self.metrics["error_anchor_pos"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["error_anchor_rot"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["error_anchor_lin_vel"] = torch.zeros(self.num_envs, device=self.device)
@@ -428,7 +447,7 @@ class MultiMotionCommand(CommandTerm):
         self.metrics["sampling_top1_prob"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["sampling_top1_bin"] = torch.zeros(self.num_envs, device=self.device)
 
-        self.down_dir = torch.tensor([0.0, 0.0, -1.0], dtype=torch.float32, device=self.device).view(1,-1,3).repeat(self.num_envs, 1, 1)
+        self.down_dir = torch.tensor([0.0, 0.0, -1.0], dtype=torch.float32, device=self.device).view(1,-1,3).repeat(self.num_envs, 1, 1) # [num_envs, 1, 3]
 
         # Force push related
         self.force_update_frequency = self.cfg.force_update_frequency
@@ -460,6 +479,10 @@ class MultiMotionCommand(CommandTerm):
         return torch.cat([self.joint_pos, self.joint_vel], dim=1)
 
     @property
+    def command_lower_body(self) -> torch.Tensor:
+        return torch.cat([self.joint_pos_lower_body, self.joint_vel_lower_body], dim=1)
+
+    @property
     def command_lookahead(self) -> torch.Tensor:
         return torch.cat([self.joint_pos_lookahead, self.joint_vel_lookahead],dim=1)
 
@@ -470,6 +493,14 @@ class MultiMotionCommand(CommandTerm):
     @property
     def joint_vel(self) -> torch.Tensor:
         return self.motion.joint_vel[self.time_steps]
+
+    @property
+    def joint_pos_lower_body(self) -> torch.Tensor:
+        return self.motion.joint_pos[self.time_steps][:, self.lower_joint_isaaclab_indices]
+    
+    @property
+    def joint_vel_lower_body(self) -> torch.Tensor:
+        return self.motion.joint_vel[self.time_steps][:, self.lower_joint_isaaclab_indices]
 
     @property
     def joint_pos_lookahead(self) -> torch.Tensor:
@@ -555,6 +586,27 @@ class MultiMotionCommand(CommandTerm):
     def future_time_steps(self) -> torch.Tensor:
         return torch.clip(self.look_ahead_steps_init + self.time_steps[:,None], 
                           max=self.motion.motion_end_idx[self.motion_ids][:,None]-1).flatten().long()
+
+    # VR 3 point related utils
+    @property
+    def vr_3point_body_quat_w(self) -> torch.Tensor:
+        return self.motion.body_quat_w[self.time_steps][:,self.vr_3point_body_indices_motion]
+    
+    @property
+    def vr_3point_body_pos_w(self) -> torch.Tensor:
+        return self.motion.body_pos_w[self.time_steps][:,self.vr_3point_body_indices_motion] + quat_apply(self.robot_vr_3point_quat_w, self.vr_3point_body_offsets)+ self._env.scene.env_origins[:, None, :]
+
+    @property
+    def robot_vr_3point_quat_w(self) -> torch.Tensor:
+        return self.robot.data.body_quat_w[:,self.vr_3point_body_indices]
+
+    @property
+    def robot_vr_3point_pos_w(self) -> torch.Tensor:
+        return self.robot.data.body_pos_w[:, self.vr_3point_body_indices] + quat_apply(self.robot.data.body_quat_w[:, self.vr_3point_body_indices], self.vr_3point_body_offsets)
+
+    @property
+    def wrist_grasp_label(self) -> torch.Tensor:
+        return self.motion.wrist_grasp_label[self.time_steps]
 
     def _update_metrics(self):
         self.metrics["error_anchor_pos"] = torch.norm(self.anchor_pos_w - self.robot_anchor_pos_w, dim=-1)
@@ -805,3 +857,10 @@ class MultiMotionCommandCfg(CommandTermCfg):
 
     force_push_body: list[str] = ["left_wrist_yaw_link", "right_wrist_yaw_link"] # default only two wrists
     force_push_body_offset: list[list[float]] = [[0.18, -0.025, 0.0],[0.18, +0.025, 0.0]]
+
+    # vr 3 point related
+    vr_3point_body: list[str] = ["left_wrist_yaw_link", "right_wrist_yaw_link", "torso_link"]
+    vr_3point_body_offset: list[list[float]] = [[0.18, -0.025, 0.0],[0.18, +0.025, 0.0], [0.0, 0.0, 0.35]]
+
+    # contact label related stuff
+    has_wrist_grasp_label: bool = False

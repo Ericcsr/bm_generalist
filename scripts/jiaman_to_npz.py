@@ -126,18 +126,19 @@ class MotionLoader:
         self.input_frames_buffer = []
         self.duration_buffer = []
         self.motion_names = []
+        #breakpoint()
         for key in motions.keys():
             self.motion_names.append(key)
             raw_motion = motions[key]
             motion_length = raw_motion["qpos"].shape[0]
             motion = torch.zeros(motion_length, 36)
             motion[:, :3] = torch.from_numpy(raw_motion["qpos"][:,:3])
-            motion[:,3:7] = torch.from_numpy(raw_motion["qpos"][:,3:7][:, [1, 2, 3, 0]])  # convert to xyzw (?)
+            motion[:,3:7] = torch.from_numpy(raw_motion["qpos"][:,3:7])  # convert to xyzw (?)
             motion[:,7:] = torch.from_numpy(raw_motion["qpos"][:,7:])
             motion = motion.to(torch.float32).to(self.device)
             self.motion_base_poss_inputs.append(motion[:, :3])
             self.motion_base_rots_inputs.append(motion[:, 3:7])
-            self.motion_base_rots_inputs[-1] = self.motion_base_rots_inputs[-1][:, [3, 0, 1, 2]]  # convert to wxyz
+            #self.motion_base_rots_inputs[-1] = self.motion_base_rots_inputs[-1][:, [3, 0, 1, 2]]  # convert to wxyz
             self.motion_dof_poss_inputs.append(motion[:, 7:])
 
             self.input_frames_buffer.append(motion.shape[0])
@@ -153,7 +154,8 @@ class MotionLoader:
         for i in range(len(self.motion_base_poss_inputs)):
             times = torch.arange(0, self.duration_buffer[i], self.output_dt, device=self.device, dtype=torch.float32)
             self.output_frames_buffer.append(times.shape[0])
-            index_0, index_1, blend = self._compute_frame_blend(times)
+            index_0, index_1, blend = self._compute_frame_blend(times, i)
+            #print(index_0, index_1, blend)
             self.motion_base_poss_buffer.append(self._lerp(
                 self.motion_base_poss_inputs[i][index_0],
                 self.motion_base_poss_inputs[i][index_1],
@@ -173,6 +175,7 @@ class MotionLoader:
                 f"Motion {i} interpolated, input frames: {self.input_frames_buffer[i]}, input fps: {self.input_fps}, output frames:"
                 f" {self.output_frames_buffer[i]}, output fps: {self.output_fps}"
             )
+            #breakpoint()
 
     def _lerp(self, a: torch.Tensor, b: torch.Tensor, blend: torch.Tensor) -> torch.Tensor:
         """Linear interpolation between two tensors."""
@@ -185,12 +188,12 @@ class MotionLoader:
             slerped_quats[i] = quat_slerp(a[i], b[i], blend[i])
         return slerped_quats
 
-    def _compute_frame_blend(self, times: torch.Tensor) -> torch.Tensor:
+    def _compute_frame_blend(self, times: torch.Tensor, traj_id: int) -> torch.Tensor:
         """Computes the frame blend for the motion."""
-        phase = times / self.duration_buffer[self.traj_id]
-        index_0 = (phase * (self.input_frames_buffer[self.traj_id] - 1)).floor().long()
-        index_1 = torch.minimum(index_0 + 1, torch.tensor(self.input_frames_buffer[self.traj_id] - 1))
-        blend = phase * (self.input_frames_buffer[self.traj_id] - 1) - index_0
+        phase = times / self.duration_buffer[traj_id]
+        index_0 = (phase * (self.input_frames_buffer[traj_id] - 1)).floor().long()
+        index_1 = torch.minimum(index_0 + 1, torch.tensor(self.input_frames_buffer[traj_id] - 1))
+        blend = phase * (self.input_frames_buffer[traj_id] - 1) - index_0
         return index_0, index_1, blend
 
     def _compute_velocities(self):
@@ -339,6 +342,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene, joi
             print(f"motion saved {motion.motion_names[motion.traj_id]}")
             np.savez(f"{args_cli.output_name}/{motion.motion_names[motion.traj_id]}.npz", **log)
             finished = motion.get_next_traj()
+            robot.reset()
             log = {
                 "fps": [args_cli.output_fps],
                 "joint_pos": [],

@@ -471,6 +471,11 @@ class MultiMotionCommand(CommandTerm):
         
         self.force_push_body_offsets = torch.tensor(self.cfg.force_push_body_offset, dtype=torch.float32, device=self.device).view(1,-1,3).repeat(self.num_envs, 1, 1)
         self.last_force_applied = torch.zeros(self.num_envs, len(self.force_push_ids), 3, dtype=torch.float, device=self.device, requires_grad=False)
+        # Compliance related
+        self.compliance_counter = torch.zeros(self.num_envs, dtype=torch.int, device=self.device)
+        self.compliance_duration_per_env = torch.zeros(self.num_envs, dtype=torch.int, device=self.device)
+        self.eef_stiffness_buf = torch.zeros(self.num_envs, 3, dtype=torch.float32, device=self.device)
+        self.compliance_config_init = False
 
         self.metrics["force applied"] = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
 
@@ -855,8 +860,8 @@ class MultiMotionCommandCfg(CommandTermCfg):
     force_update_frequency: int = 100
     max_force: float = 20.0
 
-    force_push_body: list[str] = ["left_wrist_yaw_link", "right_wrist_yaw_link"] # default only two wrists
-    force_push_body_offset: list[list[float]] = [[0.18, -0.025, 0.0],[0.18, +0.025, 0.0]]
+    force_push_body: list[str] = ["left_wrist_yaw_link", "right_wrist_yaw_link", "torso_link"]
+    force_push_body_offset: list[list[float]] = [[0.18, -0.025, 0.0],[0.18, +0.025, 0.0], [0.0, 0.0, 0.35]]
 
     # vr 3 point related
     vr_3point_body: list[str] = ["left_wrist_yaw_link", "right_wrist_yaw_link", "torso_link"]

@@ -100,6 +100,17 @@ def vr_3point_local_target(env: ManagerBasedEnv, command_name: str) -> torch.Ten
     ref_3point_root = quat_apply(quat_inv(ref_root_quat), ref_3point_diff)
     return ref_3point_root.view(env.num_envs, -1)
 
+def vr_3point_local_compliant_target(env: ManagerBasedEnv, command_name: str) -> torch.Tensor:
+    command: MotionCommand = env.command_manager.get_term(command_name)
+    ext_force_disp_w = command.last_force_applied * command.eef_stiffness_buf[:,:,None]
+    root_quat = command.robot_anchor_quat_w[:,None,:].repeat(1, len(command.cfg.vr_3point_body),1)
+    ext_force_disp_l = quat_apply(quat_inv(root_quat), ext_force_disp_w)
+    ref_root_quat = command.anchor_quat_w.view(env.num_envs, 1, 4).repeat(1, len(command.cfg.vr_3point_body), 1)
+    ref_3point_diff = command.vr_3point_body_pos_w - command.anchor_pos_w[:,None,:]
+    ref_3point_root = quat_apply(quat_inv(ref_root_quat), ref_3point_diff)
+    ref_3point_root -= ext_force_disp_l
+    return ref_3point_root.view(env.num_envs, -1)
+
 def vr_3point_local_orn_target(env: ManagerBasedEnv, command_name: str) -> torch.Tensor:
     command: MotionCommand = env.command_manager.get_term(command_name)
     ref_root_quat = command.anchor_quat_w.view(env.num_envs, 1, 4).repeat(1, len(command.cfg.vr_3point_body), 1)
@@ -110,3 +121,7 @@ def vr_3point_local_orn_target(env: ManagerBasedEnv, command_name: str) -> torch
 def wrist_grasp_label(env: ManagerBasedEnv, command_name: str) -> torch.Tensor:
     command: MotionCommand = env.command_manager.get_term(command_name)
     return command.wrist_grasp_label.view(env.num_envs, -1)
+
+def compliance(env: ManagerBasedEnv, command_name: str) -> torch.Tensor:
+    command: MotionCommand = env.command_manager.get_term(command_name)
+    return command.eef_stiffness_buf * 10.0

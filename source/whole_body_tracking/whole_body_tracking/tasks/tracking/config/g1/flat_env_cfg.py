@@ -2,11 +2,14 @@ from isaaclab.utils import configclass
 
 from whole_body_tracking.robots.g1 import G1_ACTION_SCALE, G1_CYLINDER_CFG
 from whole_body_tracking.tasks.tracking.config.g1.agents.rsl_rl_ppo_cfg import LOW_FREQ_SCALE
-from whole_body_tracking.tasks.tracking.tracking_env_cfg import TrackingEnvCfg
+from whole_body_tracking.tasks.tracking.tracking_env_cfg import TrackingEnvCfg, ROUGH_TERRAINS_CFG
 from whole_body_tracking.tasks.tracking.tracking_env_cfg_3pt import Tracking3ptEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
+from isaaclab.terrains import TerrainImporterCfg
+import isaaclab.sim as sim_utils
+from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 import whole_body_tracking.tasks.tracking.mdp as mdp
 
 @configclass
@@ -15,6 +18,49 @@ class G1FlatEnvCfg(TrackingEnvCfg):
         super().__post_init__()
 
         self.scene.robot = G1_CYLINDER_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.actions.joint_pos.scale = G1_ACTION_SCALE
+        self.commands.motion.anchor_body_name = "pelvis"
+        self.commands.motion.body_names = [
+            "pelvis",
+            "left_hip_roll_link",
+            "left_knee_link",
+            "left_ankle_roll_link",
+            "right_hip_roll_link",
+            "right_knee_link",
+            "right_ankle_roll_link",
+            "torso_link",
+            "left_shoulder_roll_link",
+            "left_elbow_link",
+            "left_wrist_yaw_link",
+            "right_shoulder_roll_link",
+            "right_elbow_link",
+            "right_wrist_yaw_link",
+        ]
+
+@configclass
+class G1RoughEnvCfg(TrackingEnvCfg):
+    def __post_init__(self):
+        super().__post_init__()
+
+        self.scene.robot = G1_CYLINDER_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.terrain = TerrainImporterCfg(
+                prim_path="/World/ground",
+                terrain_type="generator",
+                terrain_generator=ROUGH_TERRAINS_CFG,
+                max_init_terrain_level=10,
+                collision_group=1,
+                physics_material=sim_utils.RigidBodyMaterialCfg(
+                    friction_combine_mode="multiply",
+                    restitution_combine_mode="multiply",
+                    static_friction=1.0,
+                    dynamic_friction=1.0,
+                ),
+                visual_material=sim_utils.MdlFileCfg(
+                    mdl_path="{NVIDIA_NUCLEUS_DIR}/Materials/Base/Architecture/Shingles_01.mdl",
+                    project_uvw=True,
+                ),
+                debug_vis=False,
+            )
         self.actions.joint_pos.scale = G1_ACTION_SCALE
         self.commands.motion.anchor_body_name = "pelvis"
         self.commands.motion.body_names = [
@@ -79,6 +125,7 @@ class G1FlatEnvGraspCfg(TrackingEnvCfg):
             "command_name": "motion",
             "distance_threshold": 0.05,
         })
+
 @configclass
 class G1Flat3ptEnvCfg(Tracking3ptEnvCfg):
     def __post_init__(self):
@@ -103,6 +150,62 @@ class G1Flat3ptEnvCfg(Tracking3ptEnvCfg):
             "right_elbow_link",
             "right_wrist_yaw_link",
         ]
+
+@configclass
+class G1Flat3ptComplianceEnvCfg(Tracking3ptEnvCfg):
+    def __post_init__(self):
+        super().__post_init__()
+
+        self.scene.robot = G1_CYLINDER_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.actions.joint_pos.scale = G1_ACTION_SCALE
+        self.commands.motion.anchor_body_name = "pelvis"
+        self.commands.motion.body_names = [
+            "pelvis",
+            "left_hip_roll_link",
+            "left_knee_link",
+            "left_ankle_roll_link",
+            "right_hip_roll_link",
+            "right_knee_link",
+            "right_ankle_roll_link",
+            "torso_link",
+            "left_shoulder_roll_link",
+            "left_elbow_link",
+            "left_wrist_yaw_link",
+            "right_shoulder_roll_link",
+            "right_elbow_link",
+            "right_wrist_yaw_link",
+        ]
+        self.observations.policy.compliance = ObsTerm(func=mdp.compliance, params={"command_name": "motion"})
+        self.observations.policy.vr_3point_pos = ObsTerm(func=mdp.vr_3point_local_compliant_target, params={"command_name": "motion"})
+        self.observations.critic.compliance = ObsTerm(func=mdp.compliance, params={"command_name": "motion"})
+        self.observations.critic.vr_3point_pos_compliant = ObsTerm(func=mdp.vr_3point_local_compliant_target, params={"command_name": "motion"})
+        self.observations.critic.vr_3point_pos = ObsTerm(func=mdp.vr_3point_local_target, params={"command_name": "motion"})
+
+        # For all proprioception add 4 step history
+        self.observations.policy.gravity_dir = ObsTerm(func=mdp.projected_gravity, params={"command_name": "motion"}, noise=Unoise(n_min=-0.01, n_max=0.01), history_length=4)
+        self.observations.policy.base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2), history_length=4)
+        self.observations.policy.joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01), history_length=4)
+        self.observations.policy.joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-0.5, n_max=0.5), history_length=4)
+        self.observations.policy.actions = ObsTerm(func=mdp.last_action, history_length=4)
+
+        self.observations.critic.base_lin_vel = ObsTerm(func=mdp.base_lin_vel, history_length=10)
+        self.observations.critic.base_ang_vel = ObsTerm(func=mdp.base_ang_vel, history_length=10)
+        self.observations.critic.joint_pos = ObsTerm(func=mdp.joint_pos_rel, history_length=10)
+        self.observations.critic.joint_vel = ObsTerm(func=mdp.joint_vel_rel, history_length=10)
+        self.observations.critic.actions = ObsTerm(func=mdp.last_action, history_length=10)
+
+        self.events.change_compliance = EventTerm(func=mdp.change_compliance,
+                                                  mode="interval",
+                                                  interval_range_s=(0.02, 0.02),
+                                                  params={
+                                                        "command_name": "motion",
+                                                        "compliance_lb": [0.0, 0.0, 0.0],
+                                                        "compliance_ub": [0.05, 0.05, 0.0],
+                                                        "compliance_duration": (100, 200),
+                                                        "start_steps": 0
+                                                  })
+
+
 
 @configclass
 class G1FlatWoStateEstimationEnvCfg(G1FlatEnvCfg):

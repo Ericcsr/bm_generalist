@@ -12,6 +12,8 @@ from whole_body_tracking.tasks.tracking.mdp.commands import MotionCommand, Multi
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
+def rand_float(size, min_val, max_val, device):
+    return (max_val - min_val) * torch.rand(size).to(device) + min_val
 
 def randomize_joint_default_pos(
     env: ManagerBasedEnv,
@@ -198,3 +200,22 @@ def fake_contact_force(
 
     asset.set_external_force_and_torque(total_force, torch.zeros_like(total_force), positions=robot_wrist_pos, body_ids=command.force_push_ids[:2], is_global=True)
 
+def change_compliance(env: ManagerBasedEnv,
+                      env_ids, command_name: str,
+                      compliance_lb: tuple[float, float],
+                      compliance_ub: tuple[float, float],
+                      compliance_duration: tuple[int, int],
+                      start_steps: int):
+    command: MotionCommand = env.command_manager.get_term(command_name)
+    if env.common_step_counter < start_steps:
+        return
+    if command.compliance_config_init == False:
+        command.compliance_duration_per_env = torch.randint(*compliance_duration, (command.num_envs,),dtype=torch.int, device=command.device)
+        command.compliance_ub = torch.tensor(compliance_ub, device=command.device)
+        command.compliance_lb = torch.tensor(compliance_lb, device=command.device)
+        command.compliance_config_init = True
+    command.compliance_counter += 1
+    update_mask = command.compliance_counter == command.compliance_duration_per_env
+    command.eef_stiffness_buf[update_mask] = rand_float(command.eef_stiffness_buf[update_mask].shape, command.compliance_lb, command.compliance_ub, command.device)
+    command.compliance_counter[update_mask] = 0
+    command.compliance_duration_per_env[update_mask] = torch.randint(*compliance_duration, (sum(update_mask),), dtype=torch.int, device=command.device)

@@ -405,7 +405,6 @@ class MultiMotionCommand(CommandTerm):
         self.body_indexes = torch.tensor(
             self.robot.find_bodies(self.cfg.body_names, preserve_order=True)[0], dtype=torch.long, device=self.device
         )
-
         self.motion = MultiMotionLoader(self.cfg.motion_files, self.body_indexes, device=self.device, has_wrist_grasp_label=self.cfg.has_wrist_grasp_label)
         self.motion_ids = torch.randint(0, self.motion.num_motions, (self.num_envs,), device=self.device)
         #self.time_steps = torch.zeros(self.num_envs, dtype=torch.long, device=self.device) # Should be random
@@ -599,7 +598,7 @@ class MultiMotionCommand(CommandTerm):
     
     @property
     def vr_3point_body_pos_w(self) -> torch.Tensor:
-        return self.motion.body_pos_w[self.time_steps][:,self.vr_3point_body_indices_motion] + quat_apply(self.robot_vr_3point_quat_w, self.vr_3point_body_offsets)+ self._env.scene.env_origins[:, None, :]
+        return self.motion.body_pos_w[self.time_steps][:,self.vr_3point_body_indices_motion] + quat_apply(self.vr_3point_body_quat_w, self.vr_3point_body_offsets)+ self._env.scene.env_origins[:, None, :]
 
     @property
     def robot_vr_3point_quat_w(self) -> torch.Tensor:
@@ -607,7 +606,7 @@ class MultiMotionCommand(CommandTerm):
 
     @property
     def robot_vr_3point_pos_w(self) -> torch.Tensor:
-        return self.robot.data.body_pos_w[:, self.vr_3point_body_indices] + quat_apply(self.robot.data.body_quat_w[:, self.vr_3point_body_indices], self.vr_3point_body_offsets)
+        return self.robot.data.body_pos_w[:, self.vr_3point_body_indices] + quat_apply(self.robot_vr_3point_quat_w, self.vr_3point_body_offsets)
 
     @property
     def wrist_grasp_label(self) -> torch.Tensor:

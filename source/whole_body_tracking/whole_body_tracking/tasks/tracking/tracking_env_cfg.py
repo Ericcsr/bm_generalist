@@ -332,6 +332,10 @@ class TerminationsCfg:
         func=mdp.bad_anchor_pos_z_only,
         params={"command_name": "motion", "threshold": 0.25},
     )
+    anchor_pos_global = DoneTerm(
+        func=mdp.bad_anchor_pos,
+        params={"command_name": "motion", "threshold": 0.8},
+    )
     anchor_ori = DoneTerm(
         func=mdp.bad_anchor_ori,
         params={"asset_cfg": SceneEntityCfg("robot"), "command_name": "motion", "threshold": 0.8},

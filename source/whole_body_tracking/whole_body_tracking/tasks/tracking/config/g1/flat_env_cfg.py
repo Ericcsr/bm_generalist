@@ -204,6 +204,18 @@ class G1Flat3ptComplianceEnvCfg(Tracking3ptEnvCfg):
                                                         "compliance_duration": (100, 200),
                                                         "start_steps": 0
                                                   })
+        self.rewards.vr_position = RewTerm(func=mdp.vr_position_relative_error_exp, 
+                                           weight=1.0,
+                                           params={
+                                                  "command_name": "motion",
+                                                  "std": 0.05,
+                                           })
+        self.rewards.vr_orientation = RewTerm(func=mdp.vr_orientation_relative_error_exp, 
+                                              weight=0.04,
+                                              params={
+                                                  "command_name": "motion",
+                                                  "std": 0.1,
+                                           })
 
 
 

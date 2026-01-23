@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import ContactSensor
-from isaaclab.utils.math import quat_error_magnitude, quat_inv, quat_apply
+from isaaclab.utils.math import quat_error_magnitude, quat_inv, quat_apply, quat_mul
 
 from whole_body_tracking.tasks.tracking.mdp.commands import MotionCommand
 
@@ -73,6 +73,38 @@ def motion_global_body_angular_velocity_error_exp(
     )
     return torch.exp(-error.mean(-1) / std**2)
 
+def vr_position_relative_error_exp(
+    env: ManagerBasedRLEnv, command_name: str, std: float
+) -> torch.Tensor:
+    command: MotionCommand = env.command_manager.get_term(command_name)
+    robot_anchor_pos = command.robot_anchor_pos_w
+    robot_anchor_quat_inv = quat_inv(command.robot_anchor_quat_w).view(env.num_envs, 1, 4).repeat(1, 3, 1)
+    vr_pos_rel = command.vr_3point_body_pos_w - robot_anchor_pos[:, None, :]
+    vr_pos_rel = quat_apply(robot_anchor_quat_inv, vr_pos_rel)
+    ref_anchor_pos = command.anchor_pos_w
+    ref_anchor_quat_inv = quat_inv(command.anchor_quat_w).view(env.num_envs, 1, 4).repeat(1, 3, 1)
+    vr_pos_rel_ref = command.vr_3point_body_pos_w - ref_anchor_pos[:, None, :]
+    vr_pos_rel_ref = quat_apply(ref_anchor_quat_inv, vr_pos_rel_ref)
+
+    error = torch.sum(
+        torch.square(vr_pos_rel_ref - vr_pos_rel), dim=-1
+    )
+    return torch.exp(-error.mean(-1) / std**2)
+
+def vr_orientation_relative_error_exp(
+    env: ManagerBasedRLEnv, command_name: str, std: float
+) -> torch.Tensor:
+    command: MotionCommand = env.command_manager.get_term(command_name)
+    robot_anchor_quat_inv = quat_inv(command.robot_anchor_quat_w).view(env.num_envs, 1, 4).repeat(1, 3, 1)
+    vr_quat_rel = quat_mul(robot_anchor_quat_inv, command.vr_3point_body_quat_w)
+    ref_anchor_quat_inv = quat_inv(command.anchor_quat_w).view(env.num_envs, 1, 4).repeat(1, 3, 1)
+    vr_quat_rel_ref = quat_mul(ref_anchor_quat_inv, command.vr_3point_body_quat_w)
+
+    error = (
+        quat_error_magnitude(vr_quat_rel_ref, vr_quat_rel)
+        ** 2
+    )
+    return torch.exp(-error.mean(-1) / std**2)
 
 def feet_contact_time(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, threshold: float) -> torch.Tensor:
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]

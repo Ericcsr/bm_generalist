@@ -18,6 +18,6 @@ echo "SLURM_NNODES"=$SLURM_NNODES
 echo "SLURMTMPDIR="$SLURMTMPDIR
 echo "working directory = "$SLURM_SUBMIT_DIR
 
-srun bash -c '/sailhome/ericcsr/miniconda3/envs/bm/bin/python -m torch.distributed.run --nnodes=1 --nproc_per_node=4 scripts/rsl_rl/train.py --task=Tracking-Flat-G1-v0 --headless --logger wandb --log_project_name tracking --run_name lafan_full_l --motion_dir amass_twist --distributed --max_iterations 60000'
+srun bash -c '/sailhome/ericcsr/miniconda3/envs/bm/bin/python -m torch.distributed.run --nnodes=1 --nproc_per_node=8 scripts/rsl_rl/train.py --task=Tracking-Flat-3pt-G1-v0 --headless --logger wandb --log_project_name tracking --run_name global --motion_dir twist_lafan_compliance --distributed --max_iterations 60000'
 
 echo "Done"

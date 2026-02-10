@@ -797,6 +797,164 @@ class MultiMotionCommand(CommandTerm):
             self.current_body_visualizers[i].visualize(self.robot_body_pos_w[:, i], self.robot_body_quat_w[:, i])
             self.goal_body_visualizers[i].visualize(self.body_pos_relative_w[:, i], self.body_quat_relative_w[:, i])
 
+
+class BindedMultiMotionCommand(MultiMotionCommand):
+    """Multi-motion command where each environment is permanently bound to a motion ID.
+
+    Each environment is assigned a motion via env_id % num_motions, so when there are
+    more environments than motions, multiple envs share the same motion (wrapping around).
+    Uses per-motion bins for adaptive sampling and records failures from all relevant envs.
+    """
+
+    cfg: BindedMultiMotionCommandCfg
+
+    def __init__(self, cfg: BindedMultiMotionCommandCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        # Override: bind each env to a motion ID using modulo (wrap around when num_envs > num_motions)
+        self.motion_ids = (
+            torch.arange(self.num_envs, dtype=torch.long, device=self.device)
+            % self.motion.num_motions
+        )
+        # Set initial time_steps to start of each env's bound motion
+        self.time_steps = self.motion.motion_start_idx[self.motion_ids].clone()
+
+        # Per-motion bins: each motion has its own bin structure
+        steps_per_bin = 1.0 / (env.cfg.decimation * env.cfg.sim.dt)
+        self.motion_lengths = (
+            self.motion.motion_end_idx - self.motion.motion_start_idx
+        )
+        self.bin_count_per_motion = torch.clamp(
+            (self.motion_lengths.float() / steps_per_bin).long() + 1,
+            min=1,
+        )
+        self.max_bin_count = int(self.bin_count_per_motion.max().item())
+
+        # Replace parent's single bin buffers with per-motion: (num_motions, max_bin_count)
+        self.bin_failed_count = torch.zeros(
+            self.motion.num_motions, self.max_bin_count, dtype=torch.float, device=self.device
+        )
+        self._current_bin_failed = torch.zeros(
+            self.motion.num_motions, self.max_bin_count, dtype=torch.float, device=self.device
+        )
+        self.bin_count = self.max_bin_count  # keep for parent's kernel if needed
+
+    def _adaptive_sampling(self, env_ids: Sequence[int]):
+        """Sample within each env's bound motion using per-motion adaptive bin sampling."""
+        # Resolve env_ids (can be slice from reset, or list/tensor)
+        if isinstance(env_ids, slice):
+            env_ids = torch.arange(self.num_envs, device=self.device)
+        else:
+            env_ids = torch.as_tensor(env_ids, device=self.device, dtype=torch.long)
+            env_ids = env_ids.flatten()
+        n_envs = len(env_ids)
+
+        # Record failures from ALL relevant envs (all envs being resampled that actually failed)
+        episode_failed = self._env.termination_manager.terminated[env_ids]
+        if torch.any(episode_failed):
+            failed_env_ids = env_ids[episode_failed]
+            bound_motion_ids = self.motion_ids[failed_env_ids]
+            failed_time_steps = self.time_steps[failed_env_ids]
+
+            starts = self.motion.motion_start_idx[bound_motion_ids]
+            lengths = (
+                self.motion.motion_end_idx[bound_motion_ids]
+                - self.motion.motion_start_idx[bound_motion_ids]
+            )
+            lengths = torch.clamp(lengths, min=1)
+
+            # Bin index within each motion: (time_step - start) * bin_count / length
+            bin_counts = self.bin_count_per_motion[bound_motion_ids]
+            rel_steps = (failed_time_steps - starts).float().clamp(min=0)
+            bin_indices = (
+                (rel_steps * bin_counts.float() / lengths.float()).long().clamp(max=bin_counts - 1)
+            )
+
+            # Vectorized scatter-add: linear_idx = motion_id * max_bin_count + bin_idx
+            linear_indices = bound_motion_ids * self.max_bin_count + bin_indices
+            ones = torch.ones(
+                len(linear_indices), dtype=torch.float, device=self.device
+            )
+            self._current_bin_failed.view(-1).index_add_(0, linear_indices, ones)
+
+        # Sample per env within its bound motion
+        bound_motion_ids = self.motion_ids[env_ids]
+
+        # Batched prob computation: conv1d + normalize for all motions at once
+        probs_all = self.bin_failed_count[:, : self.max_bin_count].clone()
+        probs_all = torch.nn.functional.pad(
+            probs_all.unsqueeze(1),
+            (0, self.cfg.adaptive_kernel_size - 1),
+            mode="replicate",
+        )
+        probs_all = torch.nn.functional.conv1d(
+            probs_all, self.kernel.view(1, 1, -1)
+        ).squeeze(1)
+        valid_mask = (
+            torch.arange(self.max_bin_count, device=self.device)
+            < self.bin_count_per_motion.unsqueeze(1)
+        )
+        probs_all = probs_all * valid_mask.float()
+        probs_all = (
+            probs_all
+            / (probs_all.sum(dim=1, keepdim=True) + 1e-8)
+            * (1 - self.cfg.adaptive_uniform_ratio)
+        )
+        probs_all = probs_all + (
+            self.cfg.adaptive_uniform_ratio / self.bin_count_per_motion
+        ).unsqueeze(1) * valid_mask.float()
+
+        # Sample and assign per motion (loop over motions, but probs precomputed)
+        for motion_idx in range(self.motion.num_motions):
+            mask = bound_motion_ids == motion_idx
+            if not mask.any():
+                continue
+            n_m = int(mask.sum())
+            probs = probs_all[motion_idx, : self.bin_count_per_motion[motion_idx]]
+            bins = torch.multinomial(probs, n_m, replacement=True)
+            jitter = sample_uniform(0.0, 1.0, (n_m,), device=self.device)
+            frac = (bins.float() + jitter) / self.bin_count_per_motion[motion_idx]
+            motion_len = self.motion_lengths[motion_idx]
+            time_in_motion = (frac * motion_len.float()).long().clamp(max=motion_len - 1)
+            self.time_steps[env_ids[mask]] = (
+                self.motion.motion_start_idx[motion_idx] + time_in_motion
+            )
+
+    def _update_command(self):
+        """Update command and per-motion bin_failed_count."""
+        self.time_steps += 1
+        env_ids = torch.where(
+            self.time_steps >= self.motion.motion_end_idx[self.motion_ids]
+        )[0]
+        self._resample_command(env_ids)
+
+        anchor_pos_w_repeat = self.anchor_pos_w[:, None, :].repeat(1, len(self.cfg.body_names), 1)
+        anchor_quat_w_repeat = self.anchor_quat_w[:, None, :].repeat(1, len(self.cfg.body_names), 1)
+        robot_anchor_pos_w_repeat = self.robot_anchor_pos_w[:, None, :].repeat(
+            1, len(self.cfg.body_names), 1
+        )
+        robot_anchor_quat_w_repeat = self.robot_anchor_quat_w[:, None, :].repeat(
+            1, len(self.cfg.body_names), 1
+        )
+
+        delta_pos_w = robot_anchor_pos_w_repeat
+        delta_pos_w[..., 2] = anchor_pos_w_repeat[..., 2]
+        delta_ori_w = yaw_quat(
+            quat_mul(robot_anchor_quat_w_repeat, quat_inv(anchor_quat_w_repeat))
+        )
+
+        self.body_quat_relative_w = quat_mul(delta_ori_w, self.body_quat_w)
+        self.body_pos_relative_w = delta_pos_w + quat_apply(
+            delta_ori_w, self.body_pos_w - anchor_pos_w_repeat
+        )
+
+        # Per-motion bin EMA update
+        self.bin_failed_count = (
+            self.cfg.adaptive_alpha * self._current_bin_failed
+            + (1 - self.cfg.adaptive_alpha) * self.bin_failed_count
+        )
+        self._current_bin_failed.zero_()
+
+
 @configclass
 class MotionCommandCfg(CommandTermCfg):
     """Configuration for the motion command."""
@@ -868,3 +1026,15 @@ class MultiMotionCommandCfg(CommandTermCfg):
 
     # contact label related stuff
     has_wrist_grasp_label: bool = False
+
+
+@configclass
+class BindedMultiMotionCommandCfg(MultiMotionCommandCfg):
+    """Configuration for the binded multi-motion command.
+
+    Same as MultiMotionCommandCfg but each environment is permanently bound to a motion
+    via env_id % num_motions. Use this when you want deterministic env-to-motion
+    assignment (e.g., more envs than motions, wrap around).
+    """
+
+    class_type: type = BindedMultiMotionCommand

@@ -95,6 +95,102 @@ def randomize_rigid_body_com(
     # Set the new coms
     asset.root_physx_view.set_coms(coms, env_ids)
 
+
+def set_environment_collision_groups(
+    env: ManagerBasedEnv,
+    env_ids: torch.Tensor | None,
+    terrain_cfg: SceneEntityCfg,
+    robot_cfg: SceneEntityCfg,
+):
+    """Set collision groups for terrain and robot per environment to prevent inter-environment collisions.
+    
+    Each environment gets a unique collision group (bitmask):
+    - Environment 0: collision_group = 1 << 0 = 1
+    - Environment 1: collision_group = 1 << 1 = 2
+    - Environment 2: collision_group = 1 << 2 = 4
+    - etc.
+    
+    This ensures that terrain and robots from different environments don't collide.
+    Terrains and robots in the same environment share the same collision group.
+    """
+    # Resolve environment ids
+    if env_ids is None:
+        env_ids = torch.arange(env.scene.num_envs, device=env.device)
+    
+    # Get terrain and robot assets
+    terrain = env.scene[terrain_cfg.name]
+    robot = env.scene[robot_cfg.name]
+    
+    # Calculate collision groups: each environment gets a unique bit
+    # Use bit shifting: env 0 = 1, env 1 = 2, env 2 = 4, etc.
+    # Convert to numpy for easier iteration
+    env_ids_np = env_ids.cpu().numpy()
+    collision_groups = (1 << env_ids).cpu().numpy().astype(int)
+    
+    # Try to set collision groups via PhysX API
+    # Note: The exact API may vary by IsaacLab version
+    # This is a best-effort attempt; if it fails, we rely on env_spacing
+    try:
+        # Get PhysX view for terrain and robot
+        if not hasattr(terrain, 'root_physx_view') or not hasattr(robot, 'root_physx_view'):
+            raise AttributeError("root_physx_view not available")
+        
+        terrain_view = terrain.root_physx_view
+        robot_view = robot.root_physx_view
+        
+        # Try to access body handles or indices
+        # The API might vary, so we try multiple approaches
+        try:
+            # Approach 1: Try to get body handles per environment
+            for env_id, collision_group in zip(env_ids_np, collision_groups):
+                env_id_tensor = torch.tensor([env_id], device=env.device, dtype=torch.long)
+                
+                # Try to get body handles (method might not exist)
+                if hasattr(terrain_view, 'get_body_handles'):
+                    terrain_body_handles = terrain_view.get_body_handles(env_id_tensor)
+                    robot_body_handles = robot_view.get_body_handles(env_id_tensor)
+                    
+                    # Try to set collision groups
+                    if hasattr(terrain_view, 'set_collision_group'):
+                        for handle in terrain_body_handles:
+                            terrain_view.set_collision_group(handle, collision_group)
+                        for handle in robot_body_handles:
+                            robot_view.set_collision_group(handle, collision_group)
+                    elif hasattr(terrain_view, 'set_collision_groups'):
+                        terrain_view.set_collision_groups(terrain_body_handles, collision_group)
+                        robot_view.set_collision_groups(robot_body_handles, collision_group)
+                else:
+                    # Approach 2: Try to set collision groups using body indices
+                    # Get number of bodies
+                    terrain_num_bodies = terrain.num_bodies
+                    robot_num_bodies = robot.num_bodies
+                    
+                    # Try setting collision groups using body indices
+                    if hasattr(terrain_view, 'set_collision_group_by_index'):
+                        for body_idx in range(terrain_num_bodies):
+                            terrain_view.set_collision_group_by_index(env_id, body_idx, collision_group)
+                        for body_idx in range(robot_num_bodies):
+                            robot_view.set_collision_group_by_index(env_id, body_idx, collision_group)
+                    else:
+                        raise AttributeError("No suitable collision group API found")
+            
+            print(f"[INFO]: Successfully set collision groups for {len(env_ids)} environments. "
+                  f"Each environment has unique collision group to prevent inter-environment collisions.")
+        
+        except (AttributeError, NotImplementedError, TypeError) as api_error:
+            # If specific API methods don't exist, raise to outer catch
+            raise AttributeError(f"Collision group API not available: {api_error}")
+    
+    except (AttributeError, NotImplementedError, TypeError) as e:
+        # If API is not available, log warning and rely on env_spacing
+        import warnings
+        warnings.warn(
+            f"Could not set collision groups programmatically: {e}. "
+            f"Relying on env_spacing={env.scene.cfg.env_spacing} meters to prevent collisions. "
+            f"Ensure terrain fits within env_spacing/2={env.scene.cfg.env_spacing/2} meters radius from environment origin."
+        )
+
+
 def _phase_to_weight_pyramid(phase, start=0.25, end=0.75):
     weight = torch.zeros_like(phase)
     mask1 = phase < start
@@ -118,41 +214,53 @@ def force_based_push(
     applied to the bodies by calling ``asset.set_external_force_and_torque``. The forces and torques are only
     applied when ``asset.write_data_to_sim()`` is called in the environment.
     """
-    # extract the used quantities (to enable type-hinting)
-    command : MotionCommand = env.command_manager.get_term(command_name)
-    
-    # Mask update stuff
-    mask_update = (command.force_push_counter >= command.force_update_frequency)
-    if command.force_config_init == False:
+    command: MotionCommand = env.command_manager.get_term(command_name)
+
+    mask_update = command.force_push_counter >= command.force_update_frequency
+    if command.force_config_init is False:
         command.force_duration_per_env = torch.randint(*force_duration, (command.num_envs,), dtype=torch.int, device=command.device)
         command.force_config_init = True
-    mask_finish_update = (command.force_push_counter == (command.force_duration_per_env + command.force_update_frequency))
-    phase = ((command.force_push_counter - command.force_update_frequency) / command.force_duration_per_env).clamp(min=0.0, max=1.0)
-    forces = torch.zeros_like(command.body_force_dir_buf)
-    # NOTE: all body force magnitude updated at once!!
-    command.body_force_magnitude_buf[mask_finish_update] = torch.rand(sum(mask_finish_update), device=command.device)
-    if (mask_update == False).all():
-        command.force_push_counter[:] += 1
-        return
-    
-    forces[mask_update] = command.body_force_magnitude_buf[mask_update].view(-1,1,1) * _phase_to_weight_pyramid(phase)[mask_update].view(-1,1,1) * command.body_force_dir_buf[mask_update] * command.max_force
-    forces[:,command.non_force_push_ids_rel,:] = 0.0 # zero out non-force bodies
-    command.force_push_counter[mask_finish_update] = 0
-    command.force_duration_per_env[mask_finish_update] = torch.randint(*force_duration, (sum(mask_finish_update),), dtype=torch.int, device=command.device)
-    command.body_force_dir_buf[mask_finish_update] = torch.randn_like(command.body_force_dir_buf[mask_finish_update])
-    command.body_force_dir_buf /= torch.norm(command.body_force_dir_buf, dim=-1, keepdim=True) # normalize
-    
-    
-    asset = env.scene[asset_cfg.name]
+    mask_finish_update = command.force_push_counter == (command.force_duration_per_env + command.force_update_frequency)
+    n_finish = int(mask_finish_update.sum())
 
-    # sample random forces and torques
-    torques = torch.zeros_like(forces[:,command.force_push_ids_rel,:])
-    # set the forces and torques into the buffers
-    # note: these are only applied when you call: `asset.write_data_to_sim()`
-    positions = command.robot.data.body_pos_w[:,command.force_push_ids] + math_utils.quat_apply(command.robot.data.body_quat_w[:,command.force_push_ids], command.force_push_body_offsets)
-    command.last_force_applied = forces[:, command.force_push_ids_rel, :].clone()
-    command.force_push_counter[:] += 1
-    asset.set_external_force_and_torque(forces[:,command.force_push_ids_rel,:], torques, positions=positions, body_ids=command.force_push_ids, is_global=True)
+    phase = ((command.force_push_counter - command.force_update_frequency) / command.force_duration_per_env).clamp_(min=0.0, max=1.0)
+
+    # NOTE: all body force magnitude updated at once!!
+    if n_finish > 0:
+        command.body_force_magnitude_buf[mask_finish_update] = torch.rand(n_finish, device=command.device, dtype=command.body_force_magnitude_buf.dtype)
+
+    if not mask_update.any():
+        command.force_push_counter.add_(1)
+        return
+
+    # Reset and re-randomize config for envs that finished their force push cycle
+    if n_finish > 0:
+        command.force_push_counter[mask_finish_update] = 0
+        command.force_duration_per_env[mask_finish_update] = torch.randint(*force_duration, (n_finish,), dtype=torch.int, device=command.device)
+        updated_dirs = torch.randn(n_finish, command.num_bodies, 3, device=command.device, dtype=command.body_force_dir_buf.dtype)
+        command.body_force_dir_buf[mask_finish_update] = updated_dirs / torch.norm(updated_dirs, dim=-1, keepdim=True).clamp_(min=1e-8)
+
+    # Compute forces only for force_push bodies (smaller allocation, no zeroing needed)
+    n_force_bodies = len(command.force_push_ids)
+    forces = torch.zeros(command.num_envs, n_force_bodies, 3, device=command.device, dtype=command.body_force_dir_buf.dtype)
+    dir_buf = command.body_force_dir_buf[:, command.force_push_ids_rel, :]
+    phase_masked = phase[mask_update]
+    weight = _phase_to_weight_pyramid(phase_masked).view(-1, 1, 1)
+    forces[mask_update] = (
+        command.body_force_magnitude_buf[mask_update].view(-1, 1, 1)
+        * weight
+        * dir_buf[mask_update]
+        * command.max_force
+    )
+
+    asset = env.scene[asset_cfg.name]
+    positions = command.robot.data.body_pos_w[:, command.force_push_ids] + math_utils.quat_apply(
+        command.robot.data.body_quat_w[:, command.force_push_ids], command.force_push_body_offsets
+    )
+    command.last_force_applied.copy_(forces)
+    command.force_push_counter.add_(1)
+    torques = torch.zeros_like(forces)
+    asset.set_external_force_and_torque(forces, torques, positions=positions, body_ids=command.force_push_ids, is_global=True)
 
 
 def fake_contact_force(

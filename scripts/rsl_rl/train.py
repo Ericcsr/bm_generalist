@@ -32,6 +32,12 @@ parser.add_argument("--registry_name", type=str, required=False, help="The name 
 default="ericcsr-bm-org/wandb-registry-motions/run")
 parser.add_argument("--motion_dir", type=str, required=True, default="lafan")
 parser.add_argument(
+    "--terrain_folder",
+    type=str,
+    default=None,
+    help="Path to terrain folder (URDF files). For binded multi-terrain task, pairs with motion_dir by base name. Defaults to motion_dir if not set.",
+)
+parser.add_argument(
     "--distributed", action="store_true", default=False, help="Run training with multiple GPUs or nodes."
 )
 
@@ -118,8 +124,20 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     #api = wandb.Api()
     #artifact = api.artifact(registry_name)
     # env_cfg.commands.motion.motion_file = str(pathlib.Path(artifact.download()) / "motion.npz")
-    motion_files = [args_cli.motion_dir+"/"+x for x in os.listdir(args_cli.motion_dir)]
-    env_cfg.commands.motion.motion_files = motion_files
+    if hasattr(env_cfg, "setup_motion_terrain_pairs"):
+        # Binded multi-terrain: pair motions (.npz) with terrains (.urdf) by base name
+        env_cfg.motion_dir = args_cli.motion_dir
+        env_cfg.terrain_folder_path = args_cli.terrain_folder or args_cli.motion_dir
+        env_cfg.setup_motion_terrain_pairs()
+        if args_cli.num_envs is not None:
+            # Allow user to override num_envs (will wrap env_id % num_pairs for terrain/motion)
+            env_cfg.scene.num_envs = args_cli.num_envs
+            env_cfg.scene.terrain.spawn.num_envs = args_cli.num_envs
+    else:
+        motion_files = [args_cli.motion_dir + "/" + x for x in os.listdir(args_cli.motion_dir) if x.endswith(".npz")]
+        if not motion_files:
+            motion_files = [args_cli.motion_dir + "/" + x for x in os.listdir(args_cli.motion_dir)]
+        env_cfg.commands.motion.motion_files = motion_files
 
     # specify directory for logging experiments
     log_root_path = os.path.join("logs", "rsl_rl", agent_cfg.experiment_name)

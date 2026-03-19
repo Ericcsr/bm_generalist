@@ -7,7 +7,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import ContactSensor
 from isaaclab.utils.math import quat_error_magnitude, quat_inv, quat_apply, quat_mul
 
-from whole_body_tracking.tasks.tracking.mdp.commands import MotionCommand
+from whole_body_tracking.tasks.tracking.mdp.commands import BindedMultiMotionCommand, MotionCommand, MultiMotionCommand
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -134,3 +134,81 @@ def grasp_contact_reward(env: ManagerBasedRLEnv, command_name: str, distance_thr
     right_correct_contact_mask = (dist2o[:,1] < distance_threshold) * env_should_grasp
     reward = left_correct_contact_mask.float() + right_correct_contact_mask.float()
     return reward
+
+
+def contact_label_contact_reward(
+    env: ManagerBasedRLEnv,
+    command_name: str,
+    sensor_cfg: SceneEntityCfg,
+    threshold: float = 1.0,
+    contact_indices: list[int] | None = None,
+) -> torch.Tensor:
+    """Reward for matching contact labels: encourage correct links to make contact.
+
+    When contact_labels say a link should be in contact, reward if it is.
+    When contact_labels say a link should not be in contact, reward if it is not.
+    Returns 0 when contact_labels are not loaded (e.g. base config without contact collision).
+
+    contact_labels columns: 0=left_foot, 1=right_foot, 2=left_wrist, 3=right_wrist.
+    contact_indices selects which columns to use (default [0,1,2,3] for all).
+    sensor_cfg.body_names must match contact_indices order (e.g. hands_only: [2,3] with
+    body_names [left_wrist_yaw_link, right_wrist_yaw_link]).
+    """
+    command = env.command_manager.get_term(command_name)
+    if not isinstance(command, (MultiMotionCommand, BindedMultiMotionCommand)):
+        return torch.zeros(env.num_envs, device=env.device)
+    cl = command.get_contact_labels_masked()
+    if cl is None:
+        return torch.zeros(env.num_envs, device=env.device)
+
+    indices = contact_indices if contact_indices is not None else [0, 1, 2, 3]
+    desired_contact = cl[:, indices].float()  # (num_envs, len(indices))
+
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    net_forces = contact_sensor.data.net_forces_w_history[:, :, sensor_cfg.body_ids, :]
+    actual_contact = (torch.max(torch.norm(net_forces, dim=-1), dim=1)[0] > threshold).float()  # (num_envs, len(body_ids))
+
+    # Reward: fraction of links where desired == actual
+    match = (desired_contact == actual_contact).float()
+    return match.mean(dim=-1)
+
+
+def contact_label_contact_duration_reward(
+    env: ManagerBasedRLEnv,
+    command_name: str,
+    sensor_cfg: SceneEntityCfg,
+    threshold: float = 1.0,
+    contact_indices: list[int] | None = None,
+    max_duration_s: float = 0.5,
+) -> torch.Tensor:
+    """Reward for sustained contact when reference expects contact. Encourages persistent contact.
+
+    When desired_contact and actual_contact are both True, adds bonus proportional to how long
+    contact has been held (current_contact_time). Full bonus when duration >= max_duration_s.
+    Returns 0 when contact_labels not loaded or current_contact_time unavailable (track_air_time=False).
+    """
+    command = env.command_manager.get_term(command_name)
+    if not isinstance(command, (MultiMotionCommand, BindedMultiMotionCommand)):
+        return torch.zeros(env.num_envs, device=env.device)
+    cl = command.get_contact_labels_masked()
+    if cl is None:
+        return torch.zeros(env.num_envs, device=env.device)
+
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    current_contact_time = getattr(contact_sensor.data, "current_contact_time", None)
+    if current_contact_time is None:
+        return torch.zeros(env.num_envs, device=env.device)
+
+    indices = contact_indices if contact_indices is not None else [0, 1, 2, 3]
+    desired_contact = cl[:, indices].float()  # (num_envs, len(indices))
+
+    net_forces = contact_sensor.data.net_forces_w_history[:, :, sensor_cfg.body_ids, :]
+    actual_contact = (torch.max(torch.norm(net_forces, dim=-1), dim=1)[0] > threshold).float()
+
+    # Duration bonus: only when both desired and actual contact
+    duration_raw = current_contact_time[:, sensor_cfg.body_ids]  # (num_envs, len(body_ids))
+    duration_bonus = torch.clamp(duration_raw / max_duration_s, 0.0, 1.0)
+    # Apply only when in contact phase and matching
+    in_contact_phase = desired_contact * actual_contact
+    reward = (in_contact_phase * duration_bonus).sum(dim=-1) / (in_contact_phase.sum(dim=-1).clamp(min=1e-6))
+    return torch.where(in_contact_phase.sum(dim=-1) > 0, reward, torch.zeros_like(reward))

@@ -38,7 +38,25 @@ parser.add_argument(
     help="Path to terrain folder (URDF files). For binded multi-terrain task, pairs with motion_dir by base name. Defaults to motion_dir if not set.",
 )
 parser.add_argument(
+    "--object_folder",
+    type=str,
+    default=None,
+    help="Path to object folder (proxy URDFs + fitted trajectories). For binded multi-object task, pairs with motion_dir by base name.",
+)
+parser.add_argument(
+    "--contact_label_debug_vis",
+    action="store_true",
+    default=False,
+    help="Visualize contact labels at ankle_roll and wrist_yaw links: green=contact, red=no contact.",
+)
+parser.add_argument(
     "--distributed", action="store_true", default=False, help="Run training with multiple GPUs or nodes."
+)
+parser.add_argument(
+    "--physics_phase",
+    action="store_true",
+    default=False,
+    help="When enabled, magic force disappears the first time both wrists make contact with object; object then fully controlled by robot.",
 )
 
 # append RSL-RL cli arguments
@@ -125,14 +143,31 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     #artifact = api.artifact(registry_name)
     # env_cfg.commands.motion.motion_file = str(pathlib.Path(artifact.download()) / "motion.npz")
     if hasattr(env_cfg, "setup_motion_terrain_pairs"):
-        # Binded multi-terrain: pair motions (.npz) with terrains (.urdf) by base name
+        # Binded multi-terrain / multi-object: pair motions with terrains/objects by base name
         env_cfg.motion_dir = args_cli.motion_dir
         env_cfg.terrain_folder_path = args_cli.terrain_folder or args_cli.motion_dir
+        # object_folder_path: explicit --object_folder, or fallback to terrain_folder for combined config
+        if hasattr(env_cfg, "object_folder_path"):
+            env_cfg.object_folder_path = (
+                args_cli.object_folder
+                if args_cli.object_folder
+                else (args_cli.terrain_folder or args_cli.motion_dir)
+            )
+        if hasattr(env_cfg, "physics_phase_flag"):
+            env_cfg.physics_phase_flag = getattr(args_cli, "physics_phase", False)
+        contact_label_debug_vis = getattr(args_cli, "contact_label_debug_vis", False)
+        # Contact-based collision is only in Tracking-3pt-Binded-Multi-Terrain-Contact-Collision-G1-v0
         env_cfg.setup_motion_terrain_pairs()
+        if hasattr(env_cfg.events, "set_contact_link_collision"):
+            env_cfg.events.set_contact_link_collision.params["enable_contact_label_debug_vis"] = contact_label_debug_vis
+            if contact_label_debug_vis:
+                n = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
+                env_cfg.events.set_contact_link_collision.params["max_contact_label_vis_envs"] = n
         if args_cli.num_envs is not None:
             # Allow user to override num_envs (will wrap env_id % num_pairs for terrain/motion)
             env_cfg.scene.num_envs = args_cli.num_envs
-            env_cfg.scene.terrain.spawn.num_envs = args_cli.num_envs
+            if hasattr(env_cfg.scene, "terrain") and hasattr(env_cfg.scene.terrain, "spawn"):
+                env_cfg.scene.terrain.spawn.num_envs = args_cli.num_envs
     else:
         motion_files = [args_cli.motion_dir + "/" + x for x in os.listdir(args_cli.motion_dir) if x.endswith(".npz")]
         if not motion_files:
@@ -150,7 +185,36 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     log_dir = os.path.join(log_root_path, log_dir)
 
     # create isaac environment
+    print("[INFO]: Creating environment (this may take a while for many envs)...", flush=True)
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
+    print("[INFO]: Environment created successfully.", flush=True)
+
+    # Print clear status when contact labels exist and contact-label reward is active
+    _env = env.unwrapped
+    if isinstance(_env, DirectMARLEnv):
+        _env = getattr(_env, "env", _env)
+    if hasattr(_env, "command_manager"):
+        try:
+            cmd = _env.command_manager.get_term("motion")
+            has_contact_labels = getattr(cmd.motion, "contact_labels", None) is not None
+        except Exception:
+            has_contact_labels = False
+    else:
+        has_contact_labels = False
+    has_contact_reward = hasattr(env_cfg.rewards, "contact_label_contact")
+    if has_contact_labels and has_contact_reward:
+        print(
+            "[CONTACT MODE] Contact labels loaded and contact_label_contact reward ACTIVE "
+            "(weight=%.2f). Links: L/R foot, L/R wrist."
+            % (getattr(env_cfg.rewards.contact_label_contact, "weight", 0.5)),
+            flush=True,
+        )
+    elif has_contact_reward and not has_contact_labels:
+        print(
+            "[CONTACT MODE] contact_label_contact reward configured but NO contact labels loaded "
+            "(returns 0). Ensure object_folder/terrain_folder has *_contact_nodes.npy.",
+            flush=True,
+        )
     # wrap for video recording
     if args_cli.video:
         video_kwargs = {

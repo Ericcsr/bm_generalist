@@ -10,6 +10,10 @@ from typing import TYPE_CHECKING
 
 from isaaclab.assets import Articulation
 from isaaclab.managers import CommandTerm, CommandTermCfg
+from whole_body_tracking.tasks.tracking.mdp.contact_labels import (
+    load_contact_labels_for_motions,
+    load_contact_labels_for_motions_dual_folder,
+)
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 from isaaclab.markers.config import FRAME_MARKER_CFG
 from isaaclab.utils import configclass
@@ -58,18 +62,30 @@ class MotionLoader:
         return self._body_ang_vel_w[:, self._body_indexes]
 
 class MultiMotionLoader:
-    def __init__(self, motion_files: list[str], body_indexes: Sequence[int], has_wrist_grasp_label: bool, device: str = "cpu"):
+    def __init__(
+        self,
+        motion_files: list[str],
+        body_indexes: Sequence[int],
+        has_wrist_grasp_label: bool,
+        device: str = "cpu",
+        terrain_folder: str = "",
+        object_folder: str = "",
+        enable_contact_based_collision: bool = False,
+        contact_debug_zero_out: bool = False,
+        contact_debug_zero_out_env: int | None = None,
+    ):
         assert os.path.isfile(motion_files[0]), f"Invalid file path: {motion_files[0]}"
         try:
             datas = [np.load(motion_file) for motion_file in motion_files]
-        except:
-            breakpoint()
-        self.time_step_total = sum([data["joint_pos"].shape[0] for data in datas])
-        self.motion_start_idx = torch.tensor(([0] + [data["joint_pos"].shape[0] for data in datas])[:-1], dtype=torch.long, device=device).cumsum(dim=0)
-        self.motion_end_idx = torch.tensor([data["joint_pos"].shape[0] for data in datas], dtype=torch.long, device=device).cumsum(dim=0)
-        
+        except Exception:
+            raise
+        num_frames_per_motion = [data["joint_pos"].shape[0] for data in datas]
+        self.time_step_total = sum(num_frames_per_motion)
+        self.motion_start_idx = torch.tensor(([0] + num_frames_per_motion)[:-1], dtype=torch.long, device=device).cumsum(dim=0)
+        self.motion_end_idx = torch.tensor(num_frames_per_motion, dtype=torch.long, device=device).cumsum(dim=0)
+
         self.num_motions = len(datas)
-        self.fps = datas[0]["fps"] # Assume all motion have same fps
+        self.fps = datas[0]["fps"]  # Assume all motion have same fps
         self.joint_pos = torch.tensor(np.concatenate([data["joint_pos"] for data in datas], axis=0), dtype=torch.float32, device=device)
         self.joint_vel = torch.tensor(np.concatenate([data["joint_vel"] for data in datas], axis=0), dtype=torch.float32, device=device)
         self._body_pos_w = torch.tensor(np.concatenate([data["body_pos_w"] for data in datas], axis=0), dtype=torch.float32, device=device)
@@ -78,7 +94,50 @@ class MultiMotionLoader:
         self._body_ang_vel_w = torch.tensor(np.concatenate([data["body_ang_vel_w"] for data in datas], axis=0), dtype=torch.float32, device=device)
         self._body_indexes = body_indexes
         if has_wrist_grasp_label:
-            self._wrist_grasp_label = torch.tensor(np.concatenate([data["wrist_grasp_label"] for data in datas], axis=0), dtype=torch.bool, device=device)
+            # Motion files from different pipelines (terrain vs object) may have different formats.
+            # Use wrist_grasp_label when present, else zeros (T, 2) for left/right wrist.
+            wrist_labels = []
+            for data, nf in zip(datas, num_frames_per_motion):
+                out = np.zeros((nf, 2), dtype=bool)
+                if "wrist_grasp_label" in data:
+                    lbl = np.asarray(data["wrist_grasp_label"], dtype=bool)
+                    if lbl.ndim == 1:
+                        lbl = lbl[:, np.newaxis].repeat(2, axis=1)  # (T,) -> (T, 2)
+                    n = min(lbl.shape[0], nf)
+                    out[:n] = lbl[:n]
+                wrist_labels.append(out)
+            self._wrist_grasp_label = torch.tensor(np.concatenate(wrist_labels, axis=0), dtype=torch.bool, device=device)
+
+        self._contact_labels = None
+        # Load contact labels when terrain_folder or object_folder is set (multi-object or multi-terrain).
+        # When both are set (combined terrain+object), use dual-folder loader (object first, then terrain).
+        # enable_contact_based_collision is only for multi-terrain collision filtering.
+        if terrain_folder.strip() and object_folder.strip():
+            cl = load_contact_labels_for_motions_dual_folder(
+                terrain_folder, object_folder, motion_files, num_frames_per_motion
+            )
+        elif terrain_folder.strip():
+            cl = load_contact_labels_for_motions(terrain_folder, motion_files, num_frames_per_motion)
+        elif object_folder.strip():
+            cl = load_contact_labels_for_motions(object_folder, motion_files, num_frames_per_motion)
+        else:
+            cl = None
+        if cl is not None:
+            # Debug: zero out contact for specified motion(s) at load time
+            if contact_debug_zero_out:
+                motion_start = np.concatenate([[0], np.cumsum(num_frames_per_motion)[:-1]])
+                motion_end = np.cumsum(num_frames_per_motion)
+                if contact_debug_zero_out_env is not None:
+                    midx = max(0, min(contact_debug_zero_out_env, len(num_frames_per_motion) - 1))
+                    s, e = motion_start[midx], motion_end[midx]
+                    cl[s:e, :] = 0
+                    print(f"[ContactLabels] Debug zero-out: zeroed motion {midx} (frames {s}:{e})")
+                else:
+                    cl[:, :] = 0
+                    print("[ContactLabels] Debug zero-out: zeroed all motions")
+            self._contact_labels = torch.tensor(cl, dtype=torch.bool, device=device)
+            src = "dual (object+terrain)" if (terrain_folder.strip() and object_folder.strip()) else (object_folder.strip() or terrain_folder)
+            print(f"[ContactLabels] Loaded contact labels from {src} ({cl.sum(axis=0)} contacts: L/R foot, L/R wrist)")
 
     @property
     def body_pos_w(self) -> torch.Tensor:
@@ -102,6 +161,11 @@ class MultiMotionLoader:
             return self._wrist_grasp_label
         else:
             assert False, "No wrist grasp label in the motion data!"
+
+    @property
+    def contact_labels(self) -> torch.Tensor | None:
+        """Per-frame contact mask (T, 4): [left_foot, right_foot, left_wrist, right_wrist]. None if not loaded."""
+        return getattr(self, "_contact_labels", None)
 
 class MotionCommand(CommandTerm):
     cfg: MotionCommandCfg
@@ -250,6 +314,10 @@ class MotionCommand(CommandTerm):
         self.metrics["error_joint_vel"] = torch.norm(self.joint_vel - self.robot_joint_vel, dim=-1)
 
     def _adaptive_sampling(self, env_ids: Sequence[int]):
+        if self.cfg.start_from_initial_frame:
+            self.time_steps[env_ids] = 0
+            return
+
         episode_failed = self._env.termination_manager.terminated[env_ids]
         if torch.any(episode_failed):
             current_bin_index = torch.clamp(
@@ -405,7 +473,17 @@ class MultiMotionCommand(CommandTerm):
         self.body_indexes = torch.tensor(
             self.robot.find_bodies(self.cfg.body_names, preserve_order=True)[0], dtype=torch.long, device=self.device
         )
-        self.motion = MultiMotionLoader(self.cfg.motion_files, self.body_indexes, device=self.device, has_wrist_grasp_label=self.cfg.has_wrist_grasp_label)
+        self.motion = MultiMotionLoader(
+            self.cfg.motion_files,
+            self.body_indexes,
+            device=self.device,
+            has_wrist_grasp_label=self.cfg.has_wrist_grasp_label,
+            terrain_folder=getattr(self.cfg, "terrain_folder_path", "") or "",
+            object_folder=getattr(self.cfg, "object_folder_path", "") or "",
+            enable_contact_based_collision=getattr(self.cfg, "enable_contact_based_collision", False),
+            contact_debug_zero_out=getattr(self.cfg, "contact_debug_zero_out", False),
+            contact_debug_zero_out_env=getattr(self.cfg, "contact_debug_zero_out_env", None),
+        )
         self.motion_ids = torch.randint(0, self.motion.num_motions, (self.num_envs,), device=self.device)
         #self.time_steps = torch.zeros(self.num_envs, dtype=torch.long, device=self.device) # Should be random
         self.time_steps = self.motion.motion_start_idx[self.motion_ids]
@@ -445,6 +523,7 @@ class MultiMotionCommand(CommandTerm):
         self.metrics["sampling_entropy"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["sampling_top1_prob"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["sampling_top1_bin"] = torch.zeros(self.num_envs, device=self.device)
+        self.metrics["avg_sampling_top1_bin"] = torch.zeros(self.num_envs, device=self.device)
 
         self.down_dir = torch.tensor([0.0, 0.0, -1.0], dtype=torch.float32, device=self.device).view(1,-1,3).repeat(self.num_envs, 1, 1) # [num_envs, 1, 3]
 
@@ -610,6 +689,9 @@ class MultiMotionCommand(CommandTerm):
 
     @property
     def wrist_grasp_label(self) -> torch.Tensor:
+        if getattr(self.cfg, "zero_hand_contact_label", False):
+            lbl = self.motion.wrist_grasp_label[self.time_steps]
+            return torch.zeros_like(lbl, dtype=lbl.dtype, device=lbl.device)
         return self.motion.wrist_grasp_label[self.time_steps]
 
     def _update_metrics(self):
@@ -637,8 +719,16 @@ class MultiMotionCommand(CommandTerm):
 
         self.metrics["force_applied"] = torch.norm(self.last_force_applied, dim=-1).mean(dim=-1)
 
+        self.metrics["avg_sampling_top1_bin"][:] = self.metrics["sampling_top1_bin"].mean()
+
     def _adaptive_sampling(self, env_ids: Sequence[int]):
+        if self.cfg.start_from_initial_frame:
+            self.time_steps[env_ids] = self.motion.motion_start_idx[self.motion_ids[env_ids]]
+            return
+
         episode_failed = self._env.termination_manager.terminated[env_ids]
+        # Should not consider motion timeout failure
+        episode_failed = episode_failed & ~self._env.termination_manager._term_dones["motion_ended"][env_ids]
         if torch.any(episode_failed):
             current_bin_index = torch.clamp(
                 (self.time_steps * self.bin_count) // max(self.motion.time_step_total, 1), 0, self.bin_count - 1
@@ -748,6 +838,14 @@ class MultiMotionCommand(CommandTerm):
         )
         self._current_bin_failed.zero_()
 
+    def get_contact_labels_masked(self) -> torch.Tensor | None:
+        """Return contact labels for current time_steps. No dropout for base MultiMotionCommand."""
+        cl = getattr(self.motion, "contact_labels", None)
+        if cl is None:
+            return None
+        time_steps = self.time_steps.clamp(0, cl.shape[0] - 1)
+        return cl[time_steps]  # (num_envs, 4)
+
     def _set_debug_vis_impl(self, debug_vis: bool):
         if debug_vis:
             if not hasattr(self, "current_anchor_visualizer"):
@@ -838,6 +936,94 @@ class BindedMultiMotionCommand(MultiMotionCommand):
         )
         self.bin_count = self.max_bin_count  # keep for parent's kernel if needed
 
+        # Wrist contact label dropout: per-env mask (duration mode) or per-episode switch (episode mode)
+        dropout_prob = getattr(self.cfg, "contact_label_dropout_prob", 0.0)
+        dropout_duration_s = getattr(self.cfg, "contact_label_dropout_duration_s", 1.0)
+        dropout_mode = getattr(self.cfg, "contact_label_dropout_mode", "episode")
+        dt = env.cfg.decimation * env.cfg.sim.dt
+        self._wrist_dropout_prob = dropout_prob
+        self._wrist_dropout_mode = dropout_mode
+        if dropout_mode == "duration":
+            self._wrist_dropout_steps = max(
+                0, int(dropout_duration_s / dt)
+            ) if dropout_prob > 0 else 0
+            self.wrist_contact_dropout_steps_remaining = torch.zeros(
+                self.num_envs, dtype=torch.long, device=self.device
+            )
+            self.wrist_contact_dropout_enabled = None
+            if dropout_prob > 0 and self._wrist_dropout_steps > 0:
+                print(
+                    f"[ContactLabels] Wrist contact dropout (duration): prob={dropout_prob:.2f}, "
+                    f"duration={dropout_duration_s}s (~{self._wrist_dropout_steps} steps)"
+                )
+        else:
+            # "episode" mode: switch at reset, fixed until termination
+            self._wrist_dropout_steps = 0
+            self.wrist_contact_dropout_steps_remaining = None
+            self.wrist_contact_dropout_enabled = torch.zeros(
+                self.num_envs, dtype=torch.bool, device=self.device
+            )
+            if dropout_prob > 0:
+                print(
+                    f"[ContactLabels] Wrist contact dropout (episode): prob={dropout_prob:.2f}, "
+                    "masked for entire motion until termination"
+                )
+
+    def is_contact_label_dropout_active(self) -> torch.Tensor:
+        """Return (num_envs,) bool: True where contact labels are masked (dropout active)."""
+        if self._wrist_dropout_prob <= 0:
+            return torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        if self._wrist_dropout_mode == "episode":
+            enabled = self.wrist_contact_dropout_enabled
+            return enabled if enabled is not None else torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        steps = self.wrist_contact_dropout_steps_remaining
+        return (steps > 0) if steps is not None else torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+
+    def get_contact_labels_masked(self) -> torch.Tensor | None:
+        """Return contact labels with wrist (cols 2,3) zeroed for envs in dropout.
+
+        Use this instead of motion.contact_labels when dropout may be active.
+        Returns None if contact_labels not loaded.
+        """
+        cl = getattr(self.motion, "contact_labels", None)
+        if cl is None:
+            return None
+        time_steps = self.time_steps.clamp(0, cl.shape[0] - 1)
+        out = cl[time_steps].clone()  # (num_envs, 4)
+        if self._wrist_dropout_mode == "episode":
+            drop = self.wrist_contact_dropout_enabled
+        else:
+            steps = self.wrist_contact_dropout_steps_remaining
+            drop = (steps > 0) if steps is not None else torch.zeros(self.num_envs, dtype=torch.bool, device=out.device)
+        out[drop, 2] = False
+        out[drop, 3] = False
+        return out
+
+    def _resample_command(self, env_ids: Sequence[int]):
+        """Override to add wrist contact label dropout on resample."""
+        super()._resample_command(env_ids)
+        if self._wrist_dropout_prob <= 0:
+            return
+        if isinstance(env_ids, slice):
+            env_ids = torch.arange(self.num_envs, device=self.device)
+        else:
+            env_ids = torch.as_tensor(env_ids, device=self.device, dtype=torch.long).flatten()
+        if len(env_ids) == 0:
+            return
+        u = torch.rand(len(env_ids), device=self.device)
+        dropout_mask = u < self._wrist_dropout_prob
+        if self._wrist_dropout_mode == "episode":
+            enabled = self.wrist_contact_dropout_enabled
+            if enabled is not None:
+                enabled[env_ids[dropout_mask]] = True
+                enabled[env_ids[~dropout_mask]] = False
+        else:
+            if self._wrist_dropout_steps <= 0:
+                return
+            steps_rem = self.wrist_contact_dropout_steps_remaining
+            if steps_rem is not None:
+                steps_rem[env_ids[dropout_mask]] = self._wrist_dropout_steps
+
     def _adaptive_sampling(self, env_ids: Sequence[int]):
         """Sample within each env's bound motion using per-motion adaptive bin sampling."""
         # Resolve env_ids (can be slice from reset, or list/tensor)
@@ -848,8 +1034,14 @@ class BindedMultiMotionCommand(MultiMotionCommand):
             env_ids = env_ids.flatten()
         n_envs = len(env_ids)
 
+        if self.cfg.start_from_initial_frame:
+            self.time_steps[env_ids] = self.motion.motion_start_idx[self.motion_ids[env_ids]]
+            return
+
         # Record failures from ALL relevant envs (all envs being resampled that actually failed)
         episode_failed = self._env.termination_manager.terminated[env_ids]
+        # Should not consider motion timeout failure
+        episode_failed = episode_failed & ~self._env.termination_manager._term_dones["motion_ended"][env_ids]
         if torch.any(episode_failed):
             failed_env_ids = env_ids[episode_failed]
             bound_motion_ids = self.motion_ids[failed_env_ids]
@@ -919,9 +1111,25 @@ class BindedMultiMotionCommand(MultiMotionCommand):
                 self.motion.motion_start_idx[motion_idx] + time_in_motion
             )
 
+        # Metrics: per-env top1 bin from each motion's sampling probs
+        top1_bin_idx = probs_all[:, : self.max_bin_count].argmax(dim=1)  # (num_motions,)
+        self.metrics["sampling_top1_bin"][env_ids] = (
+            top1_bin_idx[bound_motion_ids].float()
+            / self.bin_count_per_motion[bound_motion_ids].float()
+        )
+
     def _update_command(self):
         """Update command and per-motion bin_failed_count."""
         self.time_steps += 1
+        # Decrement wrist contact dropout steps (duration mode only; episode mode stays fixed)
+        if (
+            self._wrist_dropout_mode == "duration"
+            and self._wrist_dropout_steps > 0
+            and self.wrist_contact_dropout_steps_remaining is not None
+        ):
+            self.wrist_contact_dropout_steps_remaining = (
+                self.wrist_contact_dropout_steps_remaining - 1
+            ).clamp(min=0)
         env_ids = torch.where(
             self.time_steps >= self.motion.motion_end_idx[self.motion_ids]
         )[0]
@@ -977,6 +1185,9 @@ class MotionCommandCfg(CommandTermCfg):
     adaptive_uniform_ratio: float = 0.1
     adaptive_alpha: float = 0.001
 
+    # When True, always resample from initial frame (for play/eval). When False, use adaptive sampling.
+    start_from_initial_frame: bool = False
+
     anchor_visualizer_cfg: VisualizationMarkersCfg = FRAME_MARKER_CFG.replace(prim_path="/Visuals/Command/pose")
     anchor_visualizer_cfg.markers["frame"].scale = (0.2, 0.2, 0.2)
 
@@ -1005,6 +1216,9 @@ class MultiMotionCommandCfg(CommandTermCfg):
     adaptive_uniform_ratio: float = 0.1
     adaptive_alpha: float = 0.001
 
+    # When True, always resample from initial frame (for play/eval). When False, use adaptive sampling.
+    start_from_initial_frame: bool = False
+
     look_ahead_frames = 5
     look_ahead_frame_skips = 5
 
@@ -1027,6 +1241,27 @@ class MultiMotionCommandCfg(CommandTermCfg):
     # contact label related stuff
     has_wrist_grasp_label: bool = False
 
+    # contact-based collision: enable/disable ankle_roll (feet) and wrist_yaw (hands) collision per frame
+    terrain_folder_path: str = ""
+    enable_contact_based_collision: bool = False
+
+    # Debug: zero out contact labels at load time (verifies contact-based collision; ankle should sink)
+    contact_debug_zero_out: bool = False
+    contact_debug_zero_out_env: int | None = None  # None = all motions; int = motion index to zero
+
+    # Play-time ablation: zero out hand (wrist) contact labels fed to policy (compare behavior with/without)
+    zero_hand_contact_label: bool = False
+
+    # Training-time dropout: randomly zero wrist contact labels for some envs.
+    # When > 0, on each env reset, with this probability the env gets wrist labels zeroed.
+    # Mode "duration": zero for contact_label_dropout_duration_s, then restore.
+    # Mode "episode": zero for the entire motion until termination (switch at reset, fixed until done).
+    contact_label_dropout_prob: float = 0.0
+    contact_label_dropout_duration_s: float = 1.0
+    contact_label_dropout_mode: str = "episode"  # "duration" | "episode"
+    # When > 0 and dropout active: move proxy object up by this many meters (z) to avoid undesired contact.
+    contact_label_dropout_object_offset_z: float = 2.0
+
 
 @configclass
 class BindedMultiMotionCommandCfg(MultiMotionCommandCfg):
@@ -1038,3 +1273,8 @@ class BindedMultiMotionCommandCfg(MultiMotionCommandCfg):
     """
 
     class_type: type = BindedMultiMotionCommand
+
+    # For combined terrain+object: object folder for contact labels (OMOMO object pipeline).
+    # When both terrain_folder_path and object_folder_path are set, contact labels are
+    # loaded from object_folder first, then terrain_folder per motion.
+    object_folder_path: str = ""

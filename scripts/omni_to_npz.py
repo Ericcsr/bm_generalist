@@ -221,11 +221,11 @@ def load_retargeted_motion(motion_file: str, device: str = "cpu"):
     num_dof = qpos.shape[1]
     
     # Extract root position and quaternion
-    root_pos = qpos[:, 0:3]  # (T, 3)
+    root_pos = qpos[:, 0:3] #+ np.array([0.0, 0.0, 0.15])  # (T, 3)
     root_quat = qpos[:, 3:7]  # (T, 4) - MuJoCo format: w, x, y, z
     
     # Extract joint positions (MuJoCo order)
-    mujoco_joint_pos = qpos[:, 7:]  # (T, num_joints)
+    mujoco_joint_pos = qpos[:, 7:36]  # (T, num_joints)
     num_joints = mujoco_joint_pos.shape[1]
     
     # Convert joint order from MuJoCo to IsaacLab
@@ -469,6 +469,9 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             print(f"  - FPS: {log['fps'][0]}")
             print(f"  - Joint positions shape: {log['joint_pos'].shape}")
             print(f"  - Body positions shape: {log['body_pos_w'].shape}")
+            if args_cli.headless:
+                print("[INFO]: Headless mode detected, exiting...")
+                os._exit(0)
 
 
 def main():

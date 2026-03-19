@@ -258,14 +258,14 @@ class EventCfg:
     )
 
     # force push robot
-    force_push_robot = EventTerm(
-        func=mdp.force_based_push,
-        mode="interval",
-        interval_range_s=(0.02, 0.02),
-        params={"force_duration": [50,100],
-                "command_name": "motion",
-                "asset_cfg": SceneEntityCfg("robot", joint_names=[".*"])},
-    )
+    # force_push_robot = EventTerm(
+    #     func=mdp.force_based_push,
+    #     mode="interval",
+    #     interval_range_s=(0.02, 0.02),
+    #     params={"force_duration": [50,100],
+    #             "command_name": "motion",
+    #             "asset_cfg": SceneEntityCfg("robot", joint_names=[".*"])},
+    # )
 
 
 @configclass
@@ -328,6 +328,7 @@ class TerminationsCfg:
     """Termination terms for the MDP."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
+    motion_ended = DoneTerm(func=mdp.motion_ended, params={"command_name": "motion"})
     anchor_pos = DoneTerm(
         func=mdp.bad_anchor_pos_z_only,
         params={"command_name": "motion", "threshold": 0.25},
@@ -371,7 +372,7 @@ class TrackingEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the locomotion velocity-tracking environment."""
 
     # Scene settings
-    scene: MySceneCfg = MySceneCfg(num_envs=8192, env_spacing=2.5)
+    scene: MySceneCfg = MySceneCfg(num_envs=4096, env_spacing=2.5)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()

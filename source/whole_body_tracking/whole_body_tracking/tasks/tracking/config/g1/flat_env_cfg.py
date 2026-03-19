@@ -8,6 +8,18 @@ from whole_body_tracking.tasks.tracking.tracking_env_cfg_3pt_binded import Track
 from whole_body_tracking.tasks.tracking.tracking_env_cfg_3pt_terrain import Tracking3ptTerrainEnvCfg
 from whole_body_tracking.tasks.tracking.tracking_env_cfg_3pt_multi_terrain import Tracking3ptMultiTerrainEnvCfg
 from whole_body_tracking.tasks.tracking.tracking_env_cfg_3pt_binded_multi_terrain import Tracking3ptBindedMultiTerrainEnvCfg
+from whole_body_tracking.tasks.tracking.tracking_env_cfg_3pt_binded_multi_terrain_by_exp import (
+    Tracking3ptBindedMultiTerrainByExpEnvCfg,
+)
+from whole_body_tracking.tasks.tracking.tracking_env_cfg_3pt_binded_multi_terrain_contact_collision import (
+    Tracking3ptBindedMultiTerrainContactCollisionEnvCfg,
+)
+from whole_body_tracking.tasks.tracking.tracking_env_cfg_3pt_binded_multi_object import (
+    Tracking3ptBindedMultiObjectEnvCfg,
+)
+from whole_body_tracking.tasks.tracking.tracking_env_cfg_3pt_binded_multi_terrain_object import (
+    Tracking3ptBindedMultiTerrainObjectEnvCfg,
+)
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
@@ -282,17 +294,19 @@ class G1Flat3ptBindedComplianceEnvCfg(Tracking3ptBindedEnvCfg):
         self.observations.critic.vr_3point_pos = ObsTerm(func=mdp.vr_3point_local_target, params={"command_name": "motion"})
 
         # For all proprioception add 4 step history
-        self.observations.policy.gravity_dir = ObsTerm(func=mdp.projected_gravity, params={"command_name": "motion"}, noise=Unoise(n_min=-0.01, n_max=0.01), history_length=4)
-        self.observations.policy.base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2), history_length=4)
-        self.observations.policy.joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01), history_length=4)
-        self.observations.policy.joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-0.5, n_max=0.5), history_length=4)
-        self.observations.policy.actions = ObsTerm(func=mdp.last_action, history_length=4)
+        actor_history_length = 4
+        critic_history_length = 10
+        self.observations.policy.gravity_dir = ObsTerm(func=mdp.projected_gravity, params={"command_name": "motion"}, noise=Unoise(n_min=-0.01, n_max=0.01), history_length=actor_history_length)
+        self.observations.policy.base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2), history_length=actor_history_length)
+        self.observations.policy.joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01), history_length=actor_history_length)
+        self.observations.policy.joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-0.5, n_max=0.5), history_length=actor_history_length)
+        self.observations.policy.actions = ObsTerm(func=mdp.last_action, history_length=actor_history_length)
 
-        self.observations.critic.base_lin_vel = ObsTerm(func=mdp.base_lin_vel, history_length=10)
-        self.observations.critic.base_ang_vel = ObsTerm(func=mdp.base_ang_vel, history_length=10)
-        self.observations.critic.joint_pos = ObsTerm(func=mdp.joint_pos_rel, history_length=10)
-        self.observations.critic.joint_vel = ObsTerm(func=mdp.joint_vel_rel, history_length=10)
-        self.observations.critic.actions = ObsTerm(func=mdp.last_action, history_length=10)
+        self.observations.critic.base_lin_vel = ObsTerm(func=mdp.base_lin_vel, history_length=critic_history_length)
+        self.observations.critic.base_ang_vel = ObsTerm(func=mdp.base_ang_vel, history_length=critic_history_length)
+        self.observations.critic.joint_pos = ObsTerm(func=mdp.joint_pos_rel, history_length=critic_history_length)
+        self.observations.critic.joint_vel = ObsTerm(func=mdp.joint_vel_rel, history_length=critic_history_length)
+        self.observations.critic.actions = ObsTerm(func=mdp.last_action, history_length=critic_history_length)
 
         self.events.change_compliance = EventTerm(func=mdp.change_compliance,
                                                   mode="interval",
@@ -394,6 +408,138 @@ class G1Flat3ptBindedMultiTerrainEnvCfg(Tracking3ptBindedMultiTerrainEnvCfg):
     Requires --motion_dir and --terrain_folder (or --terrain_folder for terrain) when running train.py.
     """
 
+    def __post_init__(self):
+        super().__post_init__()
+
+        self.scene.robot = G1_CYLINDER_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.actions.joint_pos.scale = G1_ACTION_SCALE
+        self.commands.motion.anchor_body_name = "pelvis"
+        self.commands.motion.body_names = [
+            "pelvis",
+            "left_hip_roll_link",
+            "left_knee_link",
+            "left_ankle_roll_link",
+            "right_hip_roll_link",
+            "right_knee_link",
+            "right_ankle_roll_link",
+            "torso_link",
+            "left_shoulder_roll_link",
+            "left_elbow_link",
+            "left_wrist_yaw_link",
+            "right_shoulder_roll_link",
+            "right_elbow_link",
+            "right_wrist_yaw_link",
+        ]
+
+
+@configclass
+class G1Flat3ptBindedMultiTerrainByExpEnvCfg(Tracking3ptBindedMultiTerrainByExpEnvCfg):
+    """G1 3pt tracking with binded motion-terrain pairs grouped by exp.
+
+    One terrain per exp group; all motions for that exp run on the same terrain.
+    Requires --motion_dir and --terrain_folder (merged robot-first format with exp prefix).
+    """
+
+    def __post_init__(self):
+        super().__post_init__()
+
+        self.scene.robot = G1_CYLINDER_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.actions.joint_pos.scale = G1_ACTION_SCALE
+        self.commands.motion.anchor_body_name = "pelvis"
+        self.commands.motion.body_names = [
+            "pelvis",
+            "left_hip_roll_link",
+            "left_knee_link",
+            "left_ankle_roll_link",
+            "right_hip_roll_link",
+            "right_knee_link",
+            "right_ankle_roll_link",
+            "torso_link",
+            "left_shoulder_roll_link",
+            "left_elbow_link",
+            "left_wrist_yaw_link",
+            "right_shoulder_roll_link",
+            "right_elbow_link",
+            "right_wrist_yaw_link",
+        ]
+
+
+@configclass
+class G1Flat3ptBindedMultiTerrainContactCollisionEnvCfg(Tracking3ptBindedMultiTerrainContactCollisionEnvCfg):
+    """G1 3pt tracking with binded motion-terrain pairs and contact-based collision.
+
+    Uses replicate_physics=False and per-frame collision enable/disable on
+    ankle_roll (feet) and wrist_yaw (hands) based on contact labels.
+    Requires --motion_dir and --terrain_folder with *_contact_nodes.npy files.
+    """
+
+    def __post_init__(self):
+        super().__post_init__()
+
+        self.scene.robot = G1_CYLINDER_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.actions.joint_pos.scale = G1_ACTION_SCALE
+        self.commands.motion.anchor_body_name = "pelvis"
+        self.commands.motion.body_names = [
+            "pelvis",
+            "left_hip_roll_link",
+            "left_knee_link",
+            "left_ankle_roll_link",
+            "right_hip_roll_link",
+            "right_knee_link",
+            "right_ankle_roll_link",
+            "torso_link",
+            "left_shoulder_roll_link",
+            "left_elbow_link",
+            "left_wrist_yaw_link",
+            "right_shoulder_roll_link",
+            "right_elbow_link",
+            "right_wrist_yaw_link",
+        ]
+
+
+@configclass
+class G1Flat3ptBindedMultiTerrainObjectEnvCfg(Tracking3ptBindedMultiTerrainObjectEnvCfg):
+    """G1 3pt tracking with combined terrain + object + free-space motions.
+
+    Requires --motion_dir, --terrain_folder, and --object_folder.
+    Terrain motions grouped by exp; object/free motions use flat slot.
+    """
+
+    physics_phase_flag: bool = True
+
+    def __post_init__(self):
+        super().__post_init__()
+
+        self.scene.robot = G1_CYLINDER_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.actions.joint_pos.scale = G1_ACTION_SCALE
+        self.commands.motion.anchor_body_name = "pelvis"
+        self.commands.motion.body_names = [
+            "pelvis",
+            "left_hip_roll_link",
+            "left_knee_link",
+            "left_ankle_roll_link",
+            "right_hip_roll_link",
+            "right_knee_link",
+            "right_ankle_roll_link",
+            "torso_link",
+            "left_shoulder_roll_link",
+            "left_elbow_link",
+            "left_wrist_yaw_link",
+            "right_shoulder_roll_link",
+            "right_elbow_link",
+            "right_wrist_yaw_link",
+        ]
+
+
+@configclass
+class G1Flat3ptBindedMultiObjectEnvCfg(Tracking3ptBindedMultiObjectEnvCfg):
+    """G1 3pt tracking with binded motion-object pairs (kinematic proxy objects).
+
+    Requires --motion_dir and --object_folder (pointing to omomo_object/{exp_group}).
+    Object collides only with wrists; magic force disabled when both wrists contact.
+    """
+
+    physics_phase_flag: bool = True  # Disable magic force when both wrists contact object
 
     def __post_init__(self):
         super().__post_init__()

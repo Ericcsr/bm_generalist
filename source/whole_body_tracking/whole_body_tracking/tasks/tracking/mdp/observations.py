@@ -122,6 +122,47 @@ def wrist_grasp_label(env: ManagerBasedEnv, command_name: str) -> torch.Tensor:
     command: MotionCommand = env.command_manager.get_term(command_name)
     return command.wrist_grasp_label.view(env.num_envs, -1)
 
+
+def contact_label(env: ManagerBasedEnv, command_name: str) -> torch.Tensor:
+    """Contact labels for current frame: [left_foot, right_foot, left_wrist, right_wrist].
+
+    Uses get_contact_labels_masked() so dropout is respected. Returns zeros when not loaded.
+    """
+    command = env.command_manager.get_term(command_name)
+    if not hasattr(command, "get_contact_labels_masked"):
+        return torch.zeros(env.num_envs, 4, dtype=torch.float32, device=env.device)
+    cl = command.get_contact_labels_masked()
+    if cl is None:
+        return torch.zeros(env.num_envs, 4, dtype=torch.float32, device=env.device)
+    return cl.float().view(env.num_envs, -1)
+
 def compliance(env: ManagerBasedEnv, command_name: str) -> torch.Tensor:
     command: MotionCommand = env.command_manager.get_term(command_name)
     return command.eef_stiffness_buf * 10.0
+
+
+def contact_token_future(
+    env: ManagerBasedEnv,
+    command_name: str,
+    num_future_steps: int = 5,
+) -> torch.Tensor:
+    """Contact labels for the next num_future_steps. Each step: length-4 binary [L_foot, R_foot, L_wrist, R_wrist].
+
+    Returns (num_envs, num_future_steps * 4) float tensor. When contact_labels not loaded, returns zeros.
+    """
+    command = env.command_manager.get_term(command_name)
+    contact_labels = getattr(command.motion, "contact_labels", None)
+    if contact_labels is None:
+        return torch.zeros(env.num_envs, num_future_steps * 4, dtype=torch.float32, device=env.device)
+
+    time_steps = command.time_steps
+    num_envs = env.num_envs
+    max_idx = contact_labels.shape[0] - 1
+
+    tokens = []
+    for k in range(1, num_future_steps + 1):
+        future_ts = torch.clamp(time_steps + k, 0, max_idx)
+        cl = contact_labels[future_ts]  # (num_envs, 4)
+        tokens.append(cl.float())
+    out = torch.stack(tokens, dim=1)  # (num_envs, num_future_steps, 4)
+    return out.reshape(num_envs, -1)

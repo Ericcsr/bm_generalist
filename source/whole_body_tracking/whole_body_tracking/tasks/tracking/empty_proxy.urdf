@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<!-- Minimal proxy for non-object-interaction motions. No collision, invisible.
+     Used when motion_dir contains motions without matching {motion}_thin_plate_proxy.urdf. -->
+<robot name="empty_proxy">
+  <link name="proxy_base">
+    <visual>
+      <geometry><box size="0.001 0.001 0.001"/></geometry>
+    </visual>
+  </link>
+</robot>

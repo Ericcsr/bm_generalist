@@ -118,7 +118,11 @@ def attach_onnx_metadata(env: ManagerBasedRLEnv, run_path: str, path: str, filen
         "joint_names": env.scene["robot"].data.joint_names,
         "joint_stiffness": env.scene["robot"].data.joint_stiffness[0].cpu().tolist(),
         "joint_damping": env.scene["robot"].data.joint_damping[0].cpu().tolist(),
-        "default_joint_pos": env.scene["robot"].data.default_joint_pos_nominal.cpu().tolist(),
+        "default_joint_pos": getattr(
+            env.scene["robot"].data,
+            "default_joint_pos_nominal",
+            env.scene["robot"].data.default_joint_pos[0],
+        ).cpu().tolist(),
         "command_names": env.command_manager.active_terms,
         "observation_names": env.observation_manager.active_terms["policy"],
         "action_scale": env.action_manager.get_term("joint_pos")._scale[0].cpu().tolist(),

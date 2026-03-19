@@ -16,7 +16,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.sim.spawners.spawner_cfg import RigidObjectSpawnerCfg
 from isaaclab.utils import configclass
 
-from .terrain_mesh_spawner import FLAT_PLANE_MARKER, spawn_terrain_from_urdf, spawn_terrain_from_urdf_list
+from .terrain_mesh_spawner import FLAT_PLANE_MARKER, spawn_terrain_from_urdf, spawn_terrain_from_urdf_list, spawn_object_from_urdf_list
 
 
 @configclass
@@ -61,9 +61,41 @@ class MultiTerrainMeshSpawnerCfg(RigidObjectSpawnerCfg):
     num_envs: int | None = None
     """Number of environments. Required when replicate_physics=True (default) since only env_0 exists at spawn time.
     When set, paths are generated as /World/envs/env_0/Terrain, env_1/Terrain, etc. instead of using find_matching_prim_paths."""
-    
+
+    env_spacing: float | None = None
+    """Env spacing for terrain slot positions when using global paths (/World/terrains/slot_*).
+    Used with GridCloner layout. env_spacing=0 puts all at origin (FAR-tracking style)."""
+
+    motion_to_slot: list[int] | None = None
+    """Optional mapping: motion_idx -> slot_idx. When set (by-exp layout), env i gets slot motion_to_slot[i % num_motions].
+    Enables multiple motions per terrain (one terrain per exp group)."""
+
     visual_material: sim_utils.VisualMaterialCfg | None = None
     """Visual material properties. Defaults to PreviewSurfaceCfg with brown color."""
     
     physics_material: sim_utils.RigidBodyMaterialCfg | None = None
     """Physics material properties. Defaults to RigidBodyMaterialCfg with friction=1.0, restitution=0.0."""
+
+
+@configclass
+class MultiObjectSpawnerCfg(RigidObjectSpawnerCfg):
+    """Configuration for spawning objects from multiple URDF files (supports box/cylinder geometry).
+
+    Uses IsaacLab's UrdfConverter instead of the mesh-only terrain spawner,
+    so it handles arbitrary URDF geometry types (box, cylinder, mesh).
+    """
+
+    func: Callable[..., Usd.Prim] = spawn_object_from_urdf_list
+
+    urdf_paths: list[str] = MISSING
+    """List of URDF paths. Each slot gets a URDF based on slot_idx modulo len(urdf_paths)."""
+
+    num_envs: int | None = None
+    """Number of environments."""
+
+    env_spacing: float | None = None
+    """Env spacing for object slot positions."""
+
+    visual_material: sim_utils.VisualMaterialCfg | None = None
+
+    physics_material: sim_utils.RigidBodyMaterialCfg | None = None

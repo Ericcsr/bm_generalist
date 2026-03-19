@@ -130,6 +130,7 @@ class ObservationsCfg:
         command = ObsTerm(func=mdp.command_lower_body, params={"command_name":"motion"})
         vr_3point_pos = ObsTerm(func=mdp.vr_3point_local_target, params={"command_name":"motion"})
         vr_3point_orn = ObsTerm(func=mdp.vr_3point_local_orn_target, params={"command_name":"motion"})
+        #motion_anchor_pos_b = ObsTerm(func=mdp.motion_anchor_pos_b, params={"command_name": "motion"}, noise=Unoise(n_min=-0.1, n_max=0.1))
         motion_anchor_ori_b = ObsTerm(
             func=mdp.motion_anchor_ori_b, params={"command_name": "motion"}, noise=Unoise(n_min=-0.05, n_max=0.05)
         )

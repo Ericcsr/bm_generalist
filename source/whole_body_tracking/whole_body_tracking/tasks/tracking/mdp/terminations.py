@@ -11,7 +11,11 @@ if TYPE_CHECKING:
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.managers import SceneEntityCfg
 
-from whole_body_tracking.tasks.tracking.mdp.commands import MotionCommand
+from whole_body_tracking.tasks.tracking.mdp.commands import (
+    BindedMultiMotionCommand,
+    MotionCommand,
+    MultiMotionCommand,
+)
 from whole_body_tracking.tasks.tracking.mdp.rewards import _get_body_indexes
 
 
@@ -77,3 +81,51 @@ def bad_motion_body_pos_z_only(
     body_indexes = _get_body_indexes(command, body_names)
     error = torch.abs(command.body_pos_relative_w[:, body_indexes, -1] - command.robot_body_pos_w[:, body_indexes, -1])
     return torch.any(error > threshold, dim=-1)
+
+
+def object_dropped_to_floor(
+    env: ManagerBasedRLEnv,
+    floor_height_threshold: float = 0.18,
+    command_name: str = "motion",
+    require_wrist_contact_label: bool = True,
+) -> torch.Tensor:
+    """Terminate when object drops to floor during physics_phase.
+
+    Only active when physics_phase_flag is True. When physics phase is activated
+    (both wrists contacted object, magic force disabled), if the object's
+    center drops below env_origin_z + floor_height_threshold, the episode terminates.
+
+    When require_wrist_contact_label=True (default), termination only triggers if
+    the reference motion's contact labels say the wrist should be in contact (i.e.
+    the robot was supposed to be holding the object). If contact_labels are not
+    loaded, falls back to original behavior (terminate on drop).
+    """
+    if not getattr(env.cfg, "physics_phase_flag", False):
+        return torch.zeros(env.scene.num_envs, dtype=torch.bool, device=env.device)
+
+    try:
+        proxy_obj = env.scene["proxy_object"]
+    except KeyError:
+        return torch.zeros(env.scene.num_envs, dtype=torch.bool, device=env.device)
+
+    from whole_body_tracking.tasks.tracking.mdp.events import get_physics_phase_activated
+
+    physics_phase = get_physics_phase_activated(env)
+    if physics_phase is None:
+        return torch.zeros(env.scene.num_envs, dtype=torch.bool, device=env.device)
+    physics_phase = physics_phase.to(env.device)
+    obj_pos_w = proxy_obj.data.root_link_pose_w[:, :3]
+    obj_z = obj_pos_w[:, 2]
+    floor_z = env.scene.env_origins[:, 2] + floor_height_threshold
+
+    dropped = physics_phase & (obj_z < floor_z)
+
+    if require_wrist_contact_label:
+        command = env.command_manager.get_term(command_name)
+        if isinstance(command, (MultiMotionCommand, BindedMultiMotionCommand)):
+            cl = command.get_contact_labels_masked()  # (num_envs, 4) [left_foot, right_foot, left_wrist, right_wrist]
+            if cl is not None:
+                wrist_contact_active = cl[:, 2] | cl[:, 3]  # either wrist should be in contact
+                dropped = dropped & wrist_contact_active  # only terminate when reference expects wrist contact
+
+    return dropped

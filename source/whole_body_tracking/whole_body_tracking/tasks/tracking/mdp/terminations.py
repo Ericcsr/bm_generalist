@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.sensors import ContactSensor
 
 from whole_body_tracking.tasks.tracking.mdp.commands import (
     BindedMultiMotionCommand,
@@ -17,6 +18,68 @@ from whole_body_tracking.tasks.tracking.mdp.commands import (
     MultiMotionCommand,
 )
 from whole_body_tracking.tasks.tracking.mdp.rewards import _get_body_indexes
+
+# Consecutive env-step count of wrist contact vs reference mismatch (per scene)
+_wrist_contact_mismatch_steps: dict[int, torch.Tensor] = {}
+
+
+def bad_wrist_contact_mismatch_duration(
+    env: ManagerBasedRLEnv,
+    command_name: str,
+    sensor_cfg: SceneEntityCfg,
+    threshold: float = 1.0,
+    contact_indices: list[int] | None = None,
+    max_mismatch_steps: int = 50,
+) -> torch.Tensor:
+    """Terminate after ``max_mismatch_steps`` consecutive **control** steps of mismatch.
+
+    Uses the same desired/actual convention as ``contact_label_contact_reward``: for each
+    wrist column in ``contact_indices`` (default hands ``[2, 3]``), reference comes from
+    ``get_contact_labels_masked()`` and actual contact from ``contact_forces`` on the
+    corresponding ``sensor_cfg`` bodies. A step **matches** only when **both** wrists match
+    (desired == actual for left and right). On any match, the running mismatch counter
+    resets to 0 for that env.
+
+    Returns False for all envs when contact labels are not loaded.
+    """
+    scene_id = id(env.scene)
+    num_envs = env.scene.num_envs
+    device = env.device
+
+    if scene_id not in _wrist_contact_mismatch_steps:
+        _wrist_contact_mismatch_steps[scene_id] = torch.zeros(num_envs, dtype=torch.long, device=device)
+    accum = _wrist_contact_mismatch_steps[scene_id]
+    if accum.shape[0] != num_envs:
+        accum = torch.zeros(num_envs, dtype=torch.long, device=device)
+        _wrist_contact_mismatch_steps[scene_id] = accum
+
+    command = env.command_manager.get_term(command_name)
+    if not isinstance(command, (MultiMotionCommand, BindedMultiMotionCommand)):
+        accum.zero_()
+        return torch.zeros(num_envs, dtype=torch.bool, device=device)
+
+    cl = command.get_contact_labels_masked()
+    if cl is None:
+        accum.zero_()
+        return torch.zeros(num_envs, dtype=torch.bool, device=device)
+
+    indices = contact_indices if contact_indices is not None else [2, 3]
+    desired_contact = cl[:, indices].float()
+
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    net_forces = contact_sensor.data.net_forces_w_history[:, :, sensor_cfg.body_ids, :]
+    actual_contact = (torch.max(torch.norm(net_forces, dim=-1), dim=1)[0] > threshold).float()
+
+    full_match = (desired_contact == actual_contact).all(dim=-1)
+    mismatch = ~full_match
+
+    first_step = env.episode_length_buf == 1
+    accum[first_step] = 0
+
+    accum = torch.where(mismatch, accum + 1, torch.zeros_like(accum))
+    _wrist_contact_mismatch_steps[scene_id] = accum
+
+    return accum >= max_mismatch_steps
 
 
 def motion_ended(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:

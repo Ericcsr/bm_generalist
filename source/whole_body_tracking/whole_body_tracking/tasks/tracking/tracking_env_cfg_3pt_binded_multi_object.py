@@ -508,6 +508,21 @@ class TerminationsCfg:
             "require_wrist_contact_label": True,
         },
     )
+    # Consecutive mismatch between reference wrist contact labels and actual wrist contact (forces).
+    # Same convention as contact_label_contact_reward; both wrists must match each step or counter resets.
+    bad_wrist_contact_mismatch = DoneTerm(
+        func=mdp.bad_wrist_contact_mismatch_duration,
+        params={
+            "command_name": "motion",
+            "sensor_cfg": SceneEntityCfg(
+                "contact_forces",
+                body_names=["left_wrist_yaw_link", "right_wrist_yaw_link"],
+            ),
+            "threshold": 1.0,
+            "contact_indices": [2, 3],
+            "max_mismatch_steps": 50,
+        },
+    )
 
 
 @configclass

@@ -553,7 +553,21 @@ class RewardsCfg:
             "threshold": 1.0,
         },
     )
-    contact_label_contact = RewTerm(
+    # Contact labels: 0=L_foot, 1=R_foot, 2=L_wrist, 3=R_wrist — split foot vs wrist for tuning.
+    contact_label_contact_foot = RewTerm(
+        func=mdp.contact_label_contact_reward,
+        weight=0.5,
+        params={
+            "command_name": "motion",
+            "sensor_cfg": SceneEntityCfg(
+                "contact_forces",
+                body_names=["left_ankle_roll_link", "right_ankle_roll_link"],
+            ),
+            "threshold": 1.0,
+            "contact_indices": [0, 1],
+        },
+    )
+    contact_label_contact_wrist = RewTerm(
         func=mdp.contact_label_contact_reward,
         weight=0.5,
         params={
@@ -566,7 +580,21 @@ class RewardsCfg:
             "contact_indices": [2, 3],
         },
     )
-    contact_label_contact_duration = RewTerm(
+    contact_label_contact_duration_foot = RewTerm(
+        func=mdp.contact_label_contact_duration_reward,
+        weight=0.25,
+        params={
+            "command_name": "motion",
+            "sensor_cfg": SceneEntityCfg(
+                "contact_forces",
+                body_names=["left_ankle_roll_link", "right_ankle_roll_link"],
+            ),
+            "threshold": 1.0,
+            "contact_indices": [0, 1],
+            "max_duration_s": 0.5,
+        },
+    )
+    contact_label_contact_duration_wrist = RewTerm(
         func=mdp.contact_label_contact_duration_reward,
         weight=0.25,
         params={
@@ -607,12 +635,26 @@ class TerminationsCfg:
             ],
         },
     )
-    object_dropped = DoneTerm(
-        func=mdp.object_dropped_to_floor,
+    # object_dropped = DoneTerm(
+    #     func=mdp.object_dropped_to_floor,
+    #     params={
+    #         "floor_height_threshold": 0.1,
+    #         "command_name": "motion",
+    #         "require_wrist_contact_label": True,
+    #     },
+    # )
+
+    bad_wrist_contact_mismatch = DoneTerm(
+        func=mdp.bad_wrist_contact_mismatch_duration,
         params={
-            "floor_height_threshold": 0.1,
             "command_name": "motion",
-            "require_wrist_contact_label": True,
+            "sensor_cfg": SceneEntityCfg(
+                "contact_forces",
+                body_names=["left_wrist_yaw_link", "right_wrist_yaw_link"],
+            ),
+            "threshold": 1.0,
+            "contact_indices": [2, 3],
+            "max_mismatch_steps": 50,
         },
     )
 
@@ -823,8 +865,11 @@ class Tracking3ptBindedMultiTerrainObjectEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.physx.enable_ccd = True
         self.sim.physx.gpu_collision_stack_size = 2**28
         self.sim.physx.gpu_max_rigid_patch_count = 10 * 2**15
+        # Multi-terrain + proxy objects + many envs: PhysX may require large aggregate broadphase
+        # buffers (PxGpuDynamicsMemoryConfig foundLostAggregatePairs / totalAggregatePairs).
         self.sim.physx.gpu_found_lost_pairs_capacity = 6_000_000
-        self.sim.physx.gpu_total_aggregate_pairs_capacity = 6_500_000
+        self.sim.physx.gpu_found_lost_aggregate_pairs_capacity = 45_000_000
+        self.sim.physx.gpu_total_aggregate_pairs_capacity = 9_000_000
         self.viewer.eye = (1.5, 1.5, 1.5)
         self.viewer.origin_type = "asset_root"
         self.viewer.asset_name = "robot"

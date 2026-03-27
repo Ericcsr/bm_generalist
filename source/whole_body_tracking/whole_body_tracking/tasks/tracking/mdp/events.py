@@ -909,15 +909,54 @@ def _init_kinematic_object_data(env: ManagerBasedEnv, command_name: str = "motio
     return _kinematic_object_data
 
 
+def _object_world_pos_from_hand_midpoint_motion(
+    command: BindedMultiMotionCommand | MultiMotionCommand,
+    env: ManagerBasedEnv,
+    env_ids: torch.Tensor | None = None,
+) -> torch.Tensor:
+    """World position: midpoint of left/right **VR 3-point** reference targets.
+
+    Matches ``command.vr_3point_body_pos_w`` (wrist link pose + ``vr_3point_body_offset``
+    rotated into world frame + env origins). Uses indices 0 and 1 (first two
+    ``vr_3point_body`` entries).
+
+    When ``env_ids`` is None, uses the current motion time per env. When set (e.g.
+    reset), recomputes the same formula at the first frame of each env's bound motion.
+    """
+    if env_ids is None:
+        vr = command.vr_3point_body_pos_w
+        return (vr[:, 0] + vr[:, 1]) * 0.5
+
+    motion = command.motion
+    pair_ids = command.motion_ids[env_ids]
+    if hasattr(motion, "motion_start_idx"):
+        ts = motion.motion_start_idx[pair_ids]
+    else:
+        ts = torch.zeros(env_ids.shape[0], dtype=torch.long, device=env.device)
+
+    idx_m = command.vr_3point_body_indices_motion
+    pos_b = motion.body_pos_w[ts][:, idx_m]
+    quat_b = motion.body_quat_w[ts][:, idx_m]
+    offsets = command.vr_3point_body_offsets[env_ids]
+    shifted = pos_b + math_utils.quat_apply(quat_b, offsets) + env.scene.env_origins[env_ids, None, :]
+    return (shifted[:, 0] + shifted[:, 1]) * 0.5
+
+
 def update_kinematic_object_poses(
     env: ManagerBasedEnv,
     env_ids: torch.Tensor | None,
     command_name: str = "motion",
+    object_position_from_hand_midpoint: bool = False,
 ):
     """Update kinematic proxy object poses from fitted object trajectories.
 
     Uses write_root_link_pose_to_sim (like HDMI) to drive the per-env proxy_object
     RigidObject. Each env's proxy follows its motion's fitted trajectory.
+
+    If ``object_position_from_hand_midpoint`` is True, world position is the midpoint of
+    the two hand VR 3-point reference targets (``vr_3point_body`` / offsets, same as
+    policy observations); orientation still comes from the fitted object trajectory
+    (``*_object_fitted.npz``).
     """
     data = _init_kinematic_object_data(env, command_name)
     if data is None or data["num_pairs"] == 0:
@@ -965,7 +1004,10 @@ def update_kinematic_object_poses(
 
     # Build pose tensor: [pos(3), quat_wxyz(4)] + env_origins for world frame
     obj_pose = torch.zeros(num_envs, 7, device=device)
-    obj_pose[:, :3] = obj_trans + env.scene.env_origins
+    if object_position_from_hand_midpoint:
+        obj_pose[:, :3] = _object_world_pos_from_hand_midpoint_motion(command, env, None)
+    else:
+        obj_pose[:, :3] = obj_trans + env.scene.env_origins
     obj_pose[:, 3:7] = obj_quat
 
     # When contact labels are switched off (dropout), move object up to avoid undesired contact
@@ -1034,11 +1076,16 @@ def reset_object_poses_direct(
     env: ManagerBasedEnv,
     env_ids: torch.Tensor | None,
     command_name: str = "motion",
+    object_position_from_hand_midpoint: bool = False,
 ):
     """Directly reset proxy object poses for env_ids (e.g. on robot/motion end reset).
 
     Uses frame 0 (motion start) for object pose since reset runs before command_manager.reset.
     Writes pose and zero velocity directly to sim - no magic force.
+
+    If ``object_position_from_hand_midpoint`` is True, position uses the VR 3-point
+    hand-target midpoint at the start of each env's bound motion; orientation from
+    fitted trajectory at frame 0.
     """
     if env_ids is None or (isinstance(env_ids, torch.Tensor) and env_ids.numel() == 0):
         return
@@ -1066,7 +1113,10 @@ def reset_object_poses_direct(
     obj_quat = data["quat_wxyz"][pair_ids, obj_frames]
 
     obj_pose = torch.zeros(len(env_ids), 7, device=device)
-    obj_pose[:, :3] = obj_trans + env.scene.env_origins[env_ids]
+    if object_position_from_hand_midpoint:
+        obj_pose[:, :3] = _object_world_pos_from_hand_midpoint_motion(command, env, env_ids)
+    else:
+        obj_pose[:, :3] = obj_trans + env.scene.env_origins[env_ids]
     obj_pose[:, 3:7] = obj_quat
 
     obj_vel = torch.zeros(len(env_ids), 6, device=device)
@@ -1076,6 +1126,31 @@ def reset_object_poses_direct(
 
     proxy_obj.write_root_link_pose_to_sim(obj_pose, env_ids=env_ids)
     proxy_obj.write_root_com_velocity_to_sim(obj_vel, env_ids=env_ids)
+
+
+def apply_object_hand_midpoint_to_events(env_cfg, use_hand_mid: bool) -> None:
+    """Set ``object_position_from_hand_midpoint`` on object-related event terms.
+
+    When True, proxy object **position** follows the reference-motion midpoint of
+    ``left_wrist_yaw_link`` and ``right_wrist_yaw_link``; **orientation** still comes
+    from the fitted trajectory (``*_object_fitted.npz``). When False, full pose is
+    from the fitted trajectory.
+
+    Safe to call after CLI overrides on ``env_cfg`` (e.g. from train.py / play.py).
+    """
+    ev = getattr(env_cfg, "events", None)
+    if ev is None:
+        return
+    for term_name in ("init_object_poses", "reset_object_poses", "update_object_poses"):
+        if not hasattr(ev, term_name):
+            continue
+        term = getattr(ev, term_name)
+        params = dict(term.params) if term.params else {}
+        params["object_position_from_hand_midpoint"] = use_hand_mid
+        if hasattr(term, "replace"):
+            setattr(ev, term_name, term.replace(params=params))
+        else:
+            object.__setattr__(term, "params", params)
 
 
 # Per-env physics phase activation: keyed by env.scene id, value = (num_envs,) bool tensor
@@ -1115,12 +1190,17 @@ def update_magic_force_object_poses(
     physics_phase: bool = False,
     physics_phase_contact_threshold: float = 1.0,
     use_pose_velocity_control: bool = False,
+    object_position_from_hand_midpoint: bool = False,
 ):
     """Apply PD-based magic force to proxy object to track desired trajectory.
 
     Uses high-gain PD control to drive the object toward the desired pose from the
     fitted trajectory. Resists external perturbations (e.g. robot contact) while
     tracking. Replaces direct pose setting with force/torque application.
+
+    If ``object_position_from_hand_midpoint`` is True, desired world position follows
+    the midpoint of the two hand VR 3-point targets (``vr_3point_body`` / offsets);
+    desired orientation still follows the fitted object trajectory.
 
     When physics_phase=True: first time both wrists make contact with object,
     magic force is disabled for that env and object is fully controlled by robot.
@@ -1184,7 +1264,10 @@ def update_magic_force_object_poses(
         torch.zeros_like(obj_frames),
     )
 
-    desired_pos = data["trans"][pair_ids, obj_frames] + env.scene.env_origins
+    if object_position_from_hand_midpoint:
+        desired_pos = _object_world_pos_from_hand_midpoint_motion(command, env, None)
+    else:
+        desired_pos = data["trans"][pair_ids, obj_frames] + env.scene.env_origins
     desired_quat = data["quat_wxyz"][pair_ids, obj_frames]
 
     # When contact labels are switched off (dropout), move object up to avoid undesired contact

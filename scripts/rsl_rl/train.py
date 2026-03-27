@@ -201,17 +201,32 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             has_contact_labels = False
     else:
         has_contact_labels = False
-    has_contact_reward = hasattr(env_cfg.rewards, "contact_label_contact")
+    _rew = env_cfg.rewards
+    has_contact_reward = (
+        hasattr(_rew, "contact_label_contact")
+        or hasattr(_rew, "contact_label_contact_foot")
+        or hasattr(_rew, "contact_label_contact_wrist")
+    )
     if has_contact_labels and has_contact_reward:
-        print(
-            "[CONTACT MODE] Contact labels loaded and contact_label_contact reward ACTIVE "
-            "(weight=%.2f). Links: L/R foot, L/R wrist."
-            % (getattr(env_cfg.rewards.contact_label_contact, "weight", 0.5)),
-            flush=True,
-        )
+        if hasattr(_rew, "contact_label_contact"):
+            w = getattr(_rew.contact_label_contact, "weight", 0.5)
+            print(
+                "[CONTACT MODE] Contact labels loaded and contact_label_contact reward ACTIVE "
+                "(weight=%.2f). Links: L/R foot, L/R wrist." % w,
+                flush=True,
+            )
+        else:
+            wf = getattr(_rew.contact_label_contact_foot, "weight", 0.25)
+            ww = getattr(_rew.contact_label_contact_wrist, "weight", 0.25)
+            print(
+                "[CONTACT MODE] Contact labels loaded; foot+wrist contact rewards ACTIVE "
+                "(instant: foot=%.2f wrist=%.2f; see also *_duration_* terms). Links: L/R foot, L/R wrist."
+                % (wf, ww),
+                flush=True,
+            )
     elif has_contact_reward and not has_contact_labels:
         print(
-            "[CONTACT MODE] contact_label_contact reward configured but NO contact labels loaded "
+            "[CONTACT MODE] contact-label contact rewards configured but NO contact labels loaded "
             "(returns 0). Ensure object_folder/terrain_folder has *_contact_nodes.npy.",
             flush=True,
         )

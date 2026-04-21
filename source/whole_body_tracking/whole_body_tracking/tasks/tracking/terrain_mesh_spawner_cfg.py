@@ -70,6 +70,11 @@ class MultiTerrainMeshSpawnerCfg(RigidObjectSpawnerCfg):
     """Optional mapping: motion_idx -> slot_idx. When set (by-exp layout), env i gets slot motion_to_slot[i % num_motions].
     Enables multiple motions per terrain (one terrain per exp group)."""
 
+    motion_extra_origin_xy: list[tuple[float, float]] | None = None
+    """Unused with global ``/World/terrains/slot_*`` layout: slot meshes are placed once on a grid, while
+    per-motion env_origin offsets would shift robots without moving terrain (misalignment). Kept for API
+    stability; :func:`set_slot_based_env_origins` does not consume this field."""
+
     visual_material: sim_utils.VisualMaterialCfg | None = None
     """Visual material properties. Defaults to PreviewSurfaceCfg with brown color."""
     

@@ -3,22 +3,28 @@
 Input npz schema:
   - qpos: (T, 36) MuJoCo order — root_pos[3], root_quat[4], joint_pos[29]
   - fps: scalar or 0-d array
-  - contact_labels: per-frame labels. Supported shapes:
+  - contact_labels: optional per-frame labels. If omitted, all-false labels are used (warning printed). Supported shapes:
       * (T, 2): left wrist, right wrist (feet forced to 0 / False in output mask)
       * (T, 4): full [L_foot, R_foot, L_wrist, R_wrist] (use as-is; typically feet are 0)
 
 Output:
   - bm_generalist/{output_name}/{output_name}.npz — same as omni_to_npz
-  - {contact_export_dir}/{prefix}_contact_nodes.npy — same dict format as omomo_object_to_npz
-    (`contact_mask` bool (T_out, 4), optional `nodes` passthrough if present in source)
+  - {prefix}_contact_nodes.npy — same dict format as omomo_object_to_npz
+    (`contact_mask` bool (T_out, 4), optional `nodes` passthrough if present in source).
+    Written next to the motion npz unless ``--contact_export_dir`` is set.
 
 Motion is interpolated with lerp/slerp; contact_mask is aligned via nearest-neighbor resampling
 to output frame count (same as omomo_object_to_npz._resample_contact_mask).
 
 Usage:
     python scripts/qpos_contact_labels_to_npz.py \\
-        --input_file path/to/motion.npz --output_name my_motion --output_fps 50 \\
-        --contact_export_dir bm_generalist/my_export_folder
+        --input_file path/to/motion.npz --output_name my_motion --output_fps 50
+
+    # Optional: put all ``*_contact_nodes.npy`` in one directory
+    #   --contact_export_dir bm_generalist/my_export_folder
+
+    # Or pass a directory: every ``*.npz`` in the folder is converted; outputs go under
+    # ``bm_generalist/{output_name}/{stem}/{stem}.npz`` and contact files use each ``stem`` as prefix.
 """
 
 """Launch Isaac Sim Simulator first."""
@@ -35,7 +41,12 @@ from isaaclab.app import AppLauncher
 parser = argparse.ArgumentParser(
     description="Convert retargeted motion (qpos + contact_labels) to training npz and contact_nodes.npy."
 )
-parser.add_argument("--input_file", type=str, required=True, help="Input .npz with qpos, fps, contact_labels")
+parser.add_argument(
+    "--input_file",
+    type=str,
+    required=True,
+    help="Input .npz file, or a directory of .npz files (non-recursive); contact_labels optional",
+)
 parser.add_argument(
     "--frame_range",
     nargs=2,
@@ -43,13 +54,18 @@ parser.add_argument(
     metavar=("START", "END"),
     help="Frame range START END (inclusive). Applied to qpos and contact_labels together.",
 )
-parser.add_argument("--output_name", type=str, required=True, help="Trajectory name (folder under bm_generalist)")
+parser.add_argument(
+    "--output_name",
+    type=str,
+    required=True,
+    help="Trajectory folder under bm_generalist (single file: {name}/{name}.npz; folder: {name}/{stem}/{stem}.npz)",
+)
 parser.add_argument("--output_fps", type=int, default=50, help="Output motion FPS")
 parser.add_argument(
     "--contact_export_dir",
     type=str,
-    required=True,
-    help="Directory to write {prefix}_contact_nodes.npy",
+    default=None,
+    help="Directory for {prefix}_contact_nodes.npy (default: same folder as each motion .npz)",
 )
 parser.add_argument(
     "--contact_export_prefix",
@@ -98,6 +114,57 @@ def _resolve_path(raw: str) -> Path:
     return p.resolve()
 
 
+def _collect_input_npz_paths(raw: str) -> tuple[list[Path], bool]:
+    """Return (paths, from_directory). Non-recursive ``*.npz`` when ``raw`` is a directory."""
+    p = _resolve_path(raw)
+    if not p.exists():
+        raise FileNotFoundError(f"Input path not found: {p}")
+    if p.is_file():
+        if p.suffix.lower() != ".npz":
+            raise ValueError(f"Expected .npz file, got: {p}")
+        return [p], False
+    if p.is_dir():
+        files = sorted(p.glob("*.npz"))
+        if not files:
+            raise ValueError(f"No .npz files in directory: {p}")
+        return files, True
+    raise ValueError(f"Not a file or directory: {p}")
+
+
+def _build_jobs() -> tuple[list[dict], bool]:
+    """Each job: input path str, output_dir Path, npz_stem str, contact_prefix str. Second value: from_directory."""
+    paths, from_directory = _collect_input_npz_paths(args_cli.input_file)
+    if not from_directory:
+        out_name = args_cli.output_name
+        return (
+            [
+                {
+                    "input": str(paths[0]),
+                    "output_dir": BM_GENERALIST_ROOT / out_name,
+                    "npz_stem": out_name,
+                    "contact_prefix": args_cli.contact_export_prefix or out_name,
+                }
+            ],
+            False,
+        )
+    if args_cli.contact_export_prefix is not None:
+        print(
+            "Warning: --contact_export_prefix ignored when --input_file is a directory; "
+            "using each file's basename (without .npz) as the contact export prefix."
+        )
+    parent = BM_GENERALIST_ROOT / args_cli.output_name
+    jobs = [
+        {
+            "input": str(p),
+            "output_dir": parent / p.stem,
+            "npz_stem": p.stem,
+            "contact_prefix": p.stem,
+        }
+        for p in paths
+    ]
+    return jobs, True
+
+
 def _resample_contact_mask(contact_mask: np.ndarray, num_frames_target: int) -> np.ndarray:
     """Resample contact mask (T, 4) to target frame count. Nearest-neighbor (matches omomo_object_to_npz)."""
     n_src = contact_mask.shape[0]
@@ -139,12 +206,18 @@ def load_retargeted_motion_with_contact(motion_file: str, device: torch.device):
     data = np.load(str(motion_path), allow_pickle=True)
     if "qpos" not in data:
         raise ValueError(f"Expected 'qpos' in npz, keys: {list(data.keys())}")
-    if "contact_labels" not in data:
-        raise ValueError(f"Expected 'contact_labels' in npz, keys: {list(data.keys())}")
 
     qpos = np.asarray(data["qpos"], dtype=np.float64)
     fps = float(data["fps"]) if "fps" in data else 30.0
-    contact_labels = np.asarray(data["contact_labels"])
+    if "contact_labels" not in data:
+        print(
+            f"Warning: 'contact_labels' missing in {motion_path.name}; "
+            f"using all-false labels for {qpos.shape[0]} frames."
+        )
+        contact_labels = np.zeros((qpos.shape[0], 4), dtype=bool)
+    else:
+        contact_labels = np.asarray(data["contact_labels"])
+        contact_labels = (contact_labels > 0.5).astype(bool)
 
     if contact_labels.shape[0] != qpos.shape[0]:
         raise ValueError(
@@ -345,28 +418,31 @@ def _export_contact_nodes(
     print(f"[INFO] Saved contact labels: {out_path} ({contact_mask_input.shape[0]} -> {output_frames} frames)")
 
 
-def run_simulator(sim: SimulationContext, scene: InteractiveScene):
+def _process_one_job(sim: SimulationContext, scene: InteractiveScene, job: dict) -> bool:
+    """Replay one motion, export contact_nodes, write training npz. Returns False if app closed early."""
     motion = RetargetedMotionLoader(
-        motion_file=args_cli.input_file,
+        motion_file=job["input"],
         output_fps=args_cli.output_fps,
         device=sim.device,
         frame_range=args_cli.frame_range,
     )
 
-    prefix = args_cli.contact_export_prefix or args_cli.output_name
-    export_dir = Path(args_cli.contact_export_dir).resolve()
+    contact_dir = (
+        Path(args_cli.contact_export_dir).resolve()
+        if args_cli.contact_export_dir is not None
+        else job["output_dir"]
+    )
     _export_contact_nodes(
         motion.contact_mask_input,
         motion.output_frames,
-        export_dir,
-        prefix,
+        contact_dir,
+        job["contact_prefix"],
         motion._nodes_optional,
     )
 
     robot = scene["robot"]
-    output_dir = BM_GENERALIST_ROOT / args_cli.output_name
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_file = output_dir / f"{args_cli.output_name}.npz"
+    job["output_dir"].mkdir(parents=True, exist_ok=True)
+    output_file = job["output_dir"] / f"{job['npz_stem']}.npz"
 
     log = {
         "fps": [args_cli.output_fps],
@@ -377,9 +453,10 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene):
         "body_lin_vel_w": [],
         "body_ang_vel_w": [],
     }
-    file_saved = False
 
-    while simulation_app.is_running():
+    for _ in range(motion.output_frames):
+        if not simulation_app.is_running():
+            return False
         (
             (
                 motion_base_pos,
@@ -389,7 +466,7 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene):
                 motion_dof_pos,
                 motion_dof_vel,
             ),
-            reset_flag,
+            _,
         ) = motion.get_next_state()
 
         root_states = robot.data.default_root_state.clone()
@@ -406,32 +483,48 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene):
         pos_lookat = root_states[0, :3].cpu().numpy()
         sim.set_camera_view(pos_lookat + np.array([2.0, 2.0, 0.5]), pos_lookat)
 
-        if not file_saved:
-            log["joint_pos"].append(robot.data.joint_pos[0, :].cpu().numpy().copy())
-            log["joint_vel"].append(robot.data.joint_vel[0, :].cpu().numpy().copy())
-            log["body_pos_w"].append(robot.data.body_pos_w[0, :].cpu().numpy().copy())
-            log["body_quat_w"].append(robot.data.body_quat_w[0, :].cpu().numpy().copy())
-            log["body_lin_vel_w"].append(robot.data.body_lin_vel_w[0, :].cpu().numpy().copy())
-            log["body_ang_vel_w"].append(robot.data.body_ang_vel_w[0, :].cpu().numpy().copy())
+        log["joint_pos"].append(robot.data.joint_pos[0, :].cpu().numpy().copy())
+        log["joint_vel"].append(robot.data.joint_vel[0, :].cpu().numpy().copy())
+        log["body_pos_w"].append(robot.data.body_pos_w[0, :].cpu().numpy().copy())
+        log["body_quat_w"].append(robot.data.body_quat_w[0, :].cpu().numpy().copy())
+        log["body_lin_vel_w"].append(robot.data.body_lin_vel_w[0, :].cpu().numpy().copy())
+        log["body_ang_vel_w"].append(robot.data.body_ang_vel_w[0, :].cpu().numpy().copy())
 
-        if reset_flag and not file_saved:
-            file_saved = True
-            for k in (
-                "joint_pos",
-                "joint_vel",
-                "body_pos_w",
-                "body_quat_w",
-                "body_lin_vel_w",
-                "body_ang_vel_w",
-            ):
-                log[k] = np.stack(log[k], axis=0)
+    for k in (
+        "joint_pos",
+        "joint_vel",
+        "body_pos_w",
+        "body_quat_w",
+        "body_lin_vel_w",
+        "body_ang_vel_w",
+    ):
+        log[k] = np.stack(log[k], axis=0)
 
-            np.savez(str(output_file), **log)
-            print(f"[INFO] Motion saved to {output_file}")
-            print(f"  Frames: {log['joint_pos'].shape[0]}, FPS: {log['fps'][0]}")
-            if args_cli.headless:
-                print("[INFO] Headless mode, exiting...")
-                os._exit(0)
+    np.savez(str(output_file), **log)
+    print(f"[INFO] Motion saved to {output_file}")
+    print(f"  Frames: {log['joint_pos'].shape[0]}, FPS: {log['fps'][0]}")
+    return True
+
+
+def run_simulator(sim: SimulationContext, scene: InteractiveScene):
+    jobs, from_directory = _build_jobs()
+    if from_directory:
+        print(f"[INFO] Directory input: converting {len(jobs)} .npz file(s).")
+
+    for ji, job in enumerate(jobs):
+        print(f"[INFO] ({ji + 1}/{len(jobs)}) {job['input']}")
+        if not _process_one_job(sim, scene, job):
+            print("[INFO] Application closed before finishing all jobs.")
+            return
+
+    if args_cli.headless:
+        print("[INFO] Headless mode, exiting...")
+        os._exit(0)
+
+    print("[INFO] All jobs finished. Close the window to exit.")
+    while simulation_app.is_running():
+        sim.render()
+        scene.update(sim.get_physics_dt())
 
 
 def main():

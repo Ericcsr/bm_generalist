@@ -8,6 +8,7 @@ Requires ``MultiMotionCommand`` VR 3-point fields (default: first two ``vr_3poin
 Usage (train.py):
     --task Tracking-3pt-Binded-Multi-Terrain-Object-HandMid-G1-v0
     --motion_dir <dir> --terrain_folder <dir> --object_folder <dir>
+    # Optional: --object_terrain_folder <merged_dir> for mixed CSV hand-object + split assets
 """
 
 from __future__ import annotations

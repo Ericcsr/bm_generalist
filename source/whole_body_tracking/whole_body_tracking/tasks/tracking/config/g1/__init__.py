@@ -163,7 +163,27 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": flat_env_cfg.G1Flat3ptBindedMultiTerrainObjectEnvCfg,
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1FlatPPORunnerCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1FlatPPOBindedMultiTerrainObjectRunnerCfg",
+    },
+)
+
+gym.register(
+    id="Tracking-3pt-Binded-Multi-Terrain-Object-2BitContact-G1-v0",
+    entry_point="whole_body_tracking.envs:ManagerBasedRLEnvWithKinematicObjects",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": flat_env_cfg.G1Flat3ptBindedMultiTerrainObject2BitContactEnvCfg,
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1FlatPPOBindedMultiTerrainObjectRunnerCfg",
+    },
+)
+
+gym.register(
+    id="Tracking-3pt-Binded-Multi-Terrain-Object-Merged-G1-v0",
+    entry_point="whole_body_tracking.envs:ManagerBasedRLEnvWithKinematicObjects",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": flat_env_cfg.G1Flat3ptBindedMultiTerrainObjectMergedEnvCfg,
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1FlatPPOBindedMultiTerrainObjectRunnerCfg",
     },
 )
 
@@ -173,6 +193,36 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": flat_env_cfg.G1Flat3ptBindedMultiTerrainObjectHandMidEnvCfg,
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1FlatPPORunnerCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1FlatPPOBindedMultiTerrainObjectRunnerCfg",
+    },
+)
+
+gym.register(
+    id="Tracking-3pt-Binded-Multi-Terrain-Object-CriticCat-G1-v0",
+    entry_point="whole_body_tracking.envs:ManagerBasedRLEnvWithKinematicObjects",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": flat_env_cfg.G1Flat3ptBindedMultiTerrainObjectCriticCategoryEnvCfg,
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1FlatPPOBindedMultiTerrainObjectRunnerCfg",
+    },
+)
+
+gym.register(
+    id="Tracking-3pt-Binded-Multi-Terrain-Object-Merged-CriticCat-G1-v0",
+    entry_point="whole_body_tracking.envs:ManagerBasedRLEnvWithKinematicObjects",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": flat_env_cfg.G1Flat3ptBindedMultiTerrainObjectMergedCriticCategoryEnvCfg,
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1FlatPPOBindedMultiTerrainObjectRunnerCfg",
+    },
+)
+
+gym.register(
+    id="Tracking-3pt-Binded-Multi-Terrain-Object-HandMid-CriticCat-G1-v0",
+    entry_point="whole_body_tracking.envs:ManagerBasedRLEnvWithKinematicObjects",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": flat_env_cfg.G1Flat3ptBindedMultiTerrainObjectHandMidCriticCategoryEnvCfg,
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1FlatPPOBindedMultiTerrainObjectRunnerCfg",
     },
 )

@@ -13,6 +13,10 @@ with the action-term or wrapper approach.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
+import torch
+
 from isaaclab.envs import ManagerBasedRLEnv
 
 
@@ -22,6 +26,15 @@ class ManagerBasedRLEnvWithKinematicObjects(ManagerBasedRLEnv):
     Runs update_kinematic_object_poses before apply_action in each decimation iteration,
     matching the working order in test_motion_object_replay.py.
     """
+
+    def __init__(self, cfg, render_mode=None, **kwargs):
+        super().__init__(cfg, render_mode=render_mode, **kwargs)
+        cats = getattr(cfg, "motion_category_per_motion", None)
+        if cats and len(cats) > 0:
+            num_motions = len(cats)
+            mc = torch.tensor(cats, dtype=torch.long, device=self.device)
+            self._motion_category_per_env = mc[torch.arange(self.num_envs, device=self.device) % num_motions]
+            self._episode_total_reward_sum = torch.zeros(self.num_envs, dtype=torch.float32, device=self.device)
 
     def step(self, action):
         """Override step to inject kinematic object update at start of each decimation iteration."""
@@ -72,6 +85,8 @@ class ManagerBasedRLEnvWithKinematicObjects(ManagerBasedRLEnv):
         self.reset_terminated = self.termination_manager.terminated
         self.reset_time_outs = self.termination_manager.time_outs
         self.reward_buf = self.reward_manager.compute(dt=self.step_dt)
+        if hasattr(self, "_episode_total_reward_sum"):
+            self._episode_total_reward_sum += self.reward_buf
 
         if len(self.recorder_manager.active_terms) > 0:
             self.obs_buf = self.observation_manager.compute()
@@ -93,3 +108,17 @@ class ManagerBasedRLEnvWithKinematicObjects(ManagerBasedRLEnv):
         self.obs_buf = self.observation_manager.compute(update_history=True)
 
         return self.obs_buf, self.reward_buf, self.reset_terminated, self.reset_time_outs, self.extras
+
+    def _reset_idx(self, env_ids: Sequence[int]):
+        super()._reset_idx(env_ids)
+        if len(env_ids) == 0 or not hasattr(self, "_episode_total_reward_sum"):
+            return
+        el_s = self.max_episode_length_s
+        cats = self._motion_category_per_env[env_ids]
+        totals = self._episode_total_reward_sum[env_ids]
+        for name, cid in [("terrain", 0), ("object", 1), ("free", 2)]:
+            mask = cats == cid
+            if torch.any(mask):
+                key = f"Episode_Reward/total_reward_mean_{name}"
+                self.extras["log"][key] = totals[mask].mean() / el_s
+        self._episode_total_reward_sum[env_ids] = 0.0

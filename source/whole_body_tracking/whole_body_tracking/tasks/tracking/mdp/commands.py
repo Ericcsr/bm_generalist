@@ -12,7 +12,7 @@ from isaaclab.assets import Articulation
 from isaaclab.managers import CommandTerm, CommandTermCfg
 from whole_body_tracking.tasks.tracking.mdp.contact_labels import (
     load_contact_labels_for_motions,
-    load_contact_labels_for_motions_dual_folder,
+    load_contact_labels_for_motions_priority_folders,
 )
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 from isaaclab.markers.config import FRAME_MARKER_CFG
@@ -70,6 +70,7 @@ class MultiMotionLoader:
         device: str = "cpu",
         terrain_folder: str = "",
         object_folder: str = "",
+        object_terrain_folder: str = "",
         enable_contact_based_collision: bool = False,
         contact_debug_zero_out: bool = False,
         contact_debug_zero_out_env: int | None = None,
@@ -109,19 +110,24 @@ class MultiMotionLoader:
             self._wrist_grasp_label = torch.tensor(np.concatenate(wrist_labels, axis=0), dtype=torch.bool, device=device)
 
         self._contact_labels = None
-        # Load contact labels when terrain_folder or object_folder is set (multi-object or multi-terrain).
-        # When both are set (combined terrain+object), use dual-folder loader (object first, then terrain).
-        # enable_contact_based_collision is only for multi-terrain collision filtering.
-        if terrain_folder.strip() and object_folder.strip():
-            cl = load_contact_labels_for_motions_dual_folder(
-                terrain_folder, object_folder, motion_files, num_frames_per_motion
-            )
-        elif terrain_folder.strip():
-            cl = load_contact_labels_for_motions(terrain_folder, motion_files, num_frames_per_motion)
-        elif object_folder.strip():
-            cl = load_contact_labels_for_motions(object_folder, motion_files, num_frames_per_motion)
-        else:
+        # object_terrain first (merged foot+hand labels), then object_folder, then terrain_folder.
+        ot = (object_terrain_folder or "").strip()
+        terr = (terrain_folder or "").strip()
+        obj = (object_folder or "").strip()
+        _seen: set[str] = set()
+        priority = []
+        for p in (ot, obj, terr):
+            if p and p not in _seen:
+                _seen.add(p)
+                priority.append(p)
+        if len(priority) == 0:
             cl = None
+        elif len(priority) == 1:
+            cl = load_contact_labels_for_motions(priority[0], motion_files, num_frames_per_motion)
+        else:
+            cl = load_contact_labels_for_motions_priority_folders(
+                priority, motion_files, num_frames_per_motion
+            )
         if cl is not None:
             # Debug: zero out contact for specified motion(s) at load time
             if contact_debug_zero_out:
@@ -136,7 +142,10 @@ class MultiMotionLoader:
                     cl[:, :] = 0
                     print("[ContactLabels] Debug zero-out: zeroed all motions")
             self._contact_labels = torch.tensor(cl, dtype=torch.bool, device=device)
-            src = "dual (object+terrain)" if (terrain_folder.strip() and object_folder.strip()) else (object_folder.strip() or terrain_folder)
+            if len(priority) > 1:
+                src = "priority folders: " + " -> ".join(priority)
+            else:
+                src = priority[0]
             print(f"[ContactLabels] Loaded contact labels from {src} ({cl.sum(axis=0)} contacts: L/R foot, L/R wrist)")
 
     @property
@@ -480,6 +489,7 @@ class MultiMotionCommand(CommandTerm):
             has_wrist_grasp_label=self.cfg.has_wrist_grasp_label,
             terrain_folder=getattr(self.cfg, "terrain_folder_path", "") or "",
             object_folder=getattr(self.cfg, "object_folder_path", "") or "",
+            object_terrain_folder=getattr(self.cfg, "object_terrain_folder_path", "") or "",
             enable_contact_based_collision=getattr(self.cfg, "enable_contact_based_collision", False),
             contact_debug_zero_out=getattr(self.cfg, "contact_debug_zero_out", False),
             contact_debug_zero_out_env=getattr(self.cfg, "contact_debug_zero_out_env", None),
@@ -1243,6 +1253,8 @@ class MultiMotionCommandCfg(CommandTermCfg):
 
     # contact-based collision: enable/disable ankle_roll (feet) and wrist_yaw (hands) collision per frame
     terrain_folder_path: str = ""
+    # Merged terrain + object + contact assets (e.g. csv_hand_object_terrain export); first in contact lookup order.
+    object_terrain_folder_path: str = ""
     enable_contact_based_collision: bool = False
 
     # Debug: zero out contact labels at load time (verifies contact-based collision; ankle should sink)
@@ -1274,7 +1286,6 @@ class BindedMultiMotionCommandCfg(MultiMotionCommandCfg):
 
     class_type: type = BindedMultiMotionCommand
 
-    # For combined terrain+object: object folder for contact labels (OMOMO object pipeline).
-    # When both terrain_folder_path and object_folder_path are set, contact labels are
-    # loaded from object_folder first, then terrain_folder per motion.
+    # object_folder_path / object_terrain_folder_path / terrain_folder_path drive contact lookup
+    # (see MultiMotionLoader: OT folder first, then object, then terrain).
     object_folder_path: str = ""

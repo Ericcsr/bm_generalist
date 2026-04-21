@@ -274,3 +274,25 @@ def load_contact_labels_for_motions_dual_folder(
     if not masks:
         return None
     return np.concatenate(masks, axis=0)
+
+
+def load_contact_labels_for_motions_priority_folders(
+    folders: Sequence[str | Path],
+    motion_files: Sequence[str],
+    num_frames_per_motion: Sequence[int],
+) -> np.ndarray | None:
+    """Scan ``folders`` in order; first existing ``{stem}_contact_nodes.npy`` wins per motion."""
+    resolved = [Path(f).resolve() for f in folders if str(f).strip()]
+    resolved = [p for p in resolved if p.is_dir()]
+    if not resolved:
+        return None
+    masks = []
+    for motion_path, nf in zip(motion_files, num_frames_per_motion):
+        stem = Path(motion_path).stem
+        m = None
+        for folder in resolved:
+            m = load_contact_labels_for_motion(folder, stem, nf)
+            if m is not None:
+                break
+        masks.append(m if m is not None else np.zeros((nf, 4), dtype=bool))
+    return np.concatenate(masks, axis=0)

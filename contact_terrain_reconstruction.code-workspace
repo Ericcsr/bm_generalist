@@ -1,0 +1,20 @@
+{
+	"folders": [
+		{
+			"path": "../contact_terrain_reconstruction"
+		},
+		{
+			"path": "."
+		},
+		{
+			"path": "../IsaacLab"
+		},
+		{
+			"path": "../GMR"
+		},
+		{
+			"path": "../syndata_tracking"
+		}
+	],
+	"settings": {}
+}

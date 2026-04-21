@@ -5,7 +5,11 @@ from typing import TYPE_CHECKING
 
 from isaaclab.utils.math import matrix_from_quat, subtract_frame_transforms, quat_apply, quat_inv, quat_mul
 
-from whole_body_tracking.tasks.tracking.mdp.commands import MotionCommand, MultiMotionCommand
+from whole_body_tracking.tasks.tracking.mdp.commands import (
+    BindedMultiMotionCommand,
+    MotionCommand,
+    MultiMotionCommand,
+)
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -123,6 +127,34 @@ def wrist_grasp_label(env: ManagerBasedEnv, command_name: str) -> torch.Tensor:
     return command.wrist_grasp_label.view(env.num_envs, -1)
 
 
+def motion_bucket_onehot_for_critic(env: ManagerBasedEnv, command_name: str) -> torch.Tensor:
+    """Privileged critic aux: 2-D one-hot [terrain_or_free, object] per environment.
+
+    Uses :attr:`env.cfg.motion_category_per_motion` (0=terrain, 1=object, 2=free) indexed by
+    binded per-env ``motion_ids``. Object column is 1 only when category is 1; terrain and free
+    share the first column. Returns zeros when categories are missing or length-mismatched.
+    """
+    command = env.command_manager.get_term(command_name)
+    n = env.num_envs
+    device = env.device
+    out = torch.zeros(n, 2, dtype=torch.float32, device=device)
+    if not isinstance(command, BindedMultiMotionCommand):
+        return out
+    cats = getattr(env.cfg, "motion_category_per_motion", None) or []
+    if len(cats) == 0:
+        return out
+    if len(cats) != int(command.motion.num_motions):
+        return out
+    motion_ids = command.motion_ids
+    cats_t = torch.as_tensor(cats, device=device, dtype=torch.long)
+    motion_cats = cats_t[motion_ids]
+    is_obj = (motion_cats == 1).float()
+    is_tf = 1.0 - is_obj
+    out[:, 0] = is_tf
+    out[:, 1] = is_obj
+    return out
+
+
 def contact_label(env: ManagerBasedEnv, command_name: str) -> torch.Tensor:
     """Contact labels for current frame: [left_foot, right_foot, left_wrist, right_wrist].
 
@@ -135,6 +167,66 @@ def contact_label(env: ManagerBasedEnv, command_name: str) -> torch.Tensor:
     if cl is None:
         return torch.zeros(env.num_envs, 4, dtype=torch.float32, device=env.device)
     return cl.float().view(env.num_envs, -1)
+
+
+def contact_label_env_object_2bit(env: ManagerBasedEnv, command_name: str) -> torch.Tensor:
+    """2-bit contact label per link: [env, object] for each of 4 links.
+
+    Output layout (num_envs, 8):
+    [L_foot_env, L_foot_obj, R_foot_env, R_foot_obj, L_wrist_env, L_wrist_obj, R_wrist_env, R_wrist_obj].
+
+    Source rule:
+    - Terrain/free motions: all active contacts are environment contacts.
+    - Object motions: foot contacts are environment contacts; wrist contacts are object contacts.
+    """
+    command = env.command_manager.get_term(command_name)
+    if not hasattr(command, "get_contact_labels_masked"):
+        return torch.zeros(env.num_envs, 8, dtype=torch.float32, device=env.device)
+    cl = command.get_contact_labels_masked()
+    if cl is None:
+        return torch.zeros(env.num_envs, 8, dtype=torch.float32, device=env.device)
+
+    # Base mapping: all contacts are environment contacts.
+    out = torch.zeros(env.num_envs, 8, dtype=torch.float32, device=env.device)
+    cl = cl.view(env.num_envs, 4)
+    out[:, 0] = cl[:, 0].float()  # L_foot env
+    out[:, 2] = cl[:, 1].float()  # R_foot env
+    out[:, 4] = cl[:, 2].float()  # L_wrist env
+    out[:, 6] = cl[:, 3].float()  # R_wrist env
+
+    # For object motions (category==1), remap wrists to object-contact bit.
+    motion_ids = getattr(command, "motion_ids", None)
+    motion_cats = getattr(env.cfg, "motion_category_per_motion", None) or []
+    if motion_ids is None or len(motion_cats) == 0:
+        return out
+    if len(motion_cats) != int(getattr(command.motion, "num_motions", len(motion_cats))):
+        return out
+
+    cats_t = torch.as_tensor(motion_cats, device=env.device, dtype=torch.long)
+    is_object_motion = cats_t[motion_ids] == 1
+    out[is_object_motion, 5] = out[is_object_motion, 4]  # L_wrist obj
+    out[is_object_motion, 7] = out[is_object_motion, 6]  # R_wrist obj
+    out[is_object_motion, 4] = 0.0
+    out[is_object_motion, 6] = 0.0
+    return out
+
+
+def contact_label_wrists_only(env: ManagerBasedEnv, command_name: str) -> torch.Tensor:
+    """Same layout as contact_label [L_foot, R_foot, L_wrist, R_wrist] but foot entries are always zero.
+
+    Uses get_contact_labels_masked() so dropout matches contact_label for wrist dims.
+    """
+    command = env.command_manager.get_term(command_name)
+    if not hasattr(command, "get_contact_labels_masked"):
+        return torch.zeros(env.num_envs, 4, dtype=torch.float32, device=env.device)
+    cl = command.get_contact_labels_masked()
+    if cl is None:
+        return torch.zeros(env.num_envs, 4, dtype=torch.float32, device=env.device)
+    cl = cl.float().view(env.num_envs, 4)
+    out = torch.zeros(env.num_envs, 4, dtype=cl.dtype, device=cl.device)
+    out[:, 2:4] = cl[:, 2:4]
+    return out
+
 
 def compliance(env: ManagerBasedEnv, command_name: str) -> torch.Tensor:
     command: MotionCommand = env.command_manager.get_term(command_name)

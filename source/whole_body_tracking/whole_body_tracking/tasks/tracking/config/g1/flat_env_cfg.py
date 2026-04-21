@@ -504,7 +504,7 @@ class G1Flat3ptBindedMultiTerrainContactCollisionEnvCfg(Tracking3ptBindedMultiTe
 class G1Flat3ptBindedMultiTerrainObjectEnvCfg(Tracking3ptBindedMultiTerrainObjectEnvCfg):
     """G1 3pt tracking with combined terrain + object + free-space motions.
 
-    Requires --motion_dir, --terrain_folder, and --object_folder.
+    Requires --motion_dir and at least one of --terrain_folder, --object_folder, --object_terrain_folder.
     Terrain motions grouped by exp; object/free motions use flat slot.
     """
 
@@ -535,6 +535,33 @@ class G1Flat3ptBindedMultiTerrainObjectEnvCfg(Tracking3ptBindedMultiTerrainObjec
 
 
 @configclass
+class G1Flat3ptBindedMultiTerrainObject2BitContactEnvCfg(G1Flat3ptBindedMultiTerrainObjectEnvCfg):
+    """Same as multi-terrain-object, but contact label observation is 2-bit per link.
+
+    Output layout:
+    [L_foot_env, L_foot_obj, R_foot_env, R_foot_obj, L_wrist_env, L_wrist_obj, R_wrist_env, R_wrist_obj]
+    """
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.observations.policy.contact_label = ObsTerm(
+            func=mdp.contact_label_env_object_2bit, params={"command_name": "motion"}
+        )
+        self.observations.critic.contact_label = ObsTerm(
+            func=mdp.contact_label_env_object_2bit, params={"command_name": "motion"}
+        )
+
+
+@configclass
+class G1Flat3ptBindedMultiTerrainObjectMergedEnvCfg(G1Flat3ptBindedMultiTerrainObjectEnvCfg):
+    """Same as :class:`G1Flat3ptBindedMultiTerrainObjectEnvCfg` but intended for mixed datasets with
+    ``--object_terrain_folder`` (CSV hand-object / single-tree exports) alongside split terrain/object dirs.
+
+    Register id: ``Tracking-3pt-Binded-Multi-Terrain-Object-Merged-G1-v0``.
+    """
+
+
+@configclass
 class G1Flat3ptBindedMultiTerrainObjectHandMidEnvCfg(Tracking3ptBindedMultiTerrainObjectHandMidEnvCfg):
     """G1: object position from reference wrist midpoint; orientation from ``*_object_fitted.npz``."""
 
@@ -562,6 +589,39 @@ class G1Flat3ptBindedMultiTerrainObjectHandMidEnvCfg(Tracking3ptBindedMultiTerra
             "right_elbow_link",
             "right_wrist_yaw_link",
         ]
+
+
+@configclass
+class G1Flat3ptBindedMultiTerrainObjectCriticCategoryEnvCfg(G1Flat3ptBindedMultiTerrainObjectEnvCfg):
+    """Adds privileged critic one-hot ``[terrain_or_free, object]`` for value conditioning (Approach A)."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.observations.critic.motion_bucket_onehot = ObsTerm(
+            func=mdp.motion_bucket_onehot_for_critic, params={"command_name": "motion"}
+        )
+
+
+@configclass
+class G1Flat3ptBindedMultiTerrainObjectMergedCriticCategoryEnvCfg(G1Flat3ptBindedMultiTerrainObjectMergedEnvCfg):
+    """Merged dataset variant with critic motion-bucket one-hot. See :class:`G1Flat3ptBindedMultiTerrainObjectCriticCategoryEnvCfg`."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.observations.critic.motion_bucket_onehot = ObsTerm(
+            func=mdp.motion_bucket_onehot_for_critic, params={"command_name": "motion"}
+        )
+
+
+@configclass
+class G1Flat3ptBindedMultiTerrainObjectHandMidCriticCategoryEnvCfg(G1Flat3ptBindedMultiTerrainObjectHandMidEnvCfg):
+    """Hand-mid object variant with critic motion-bucket one-hot. See :class:`G1Flat3ptBindedMultiTerrainObjectCriticCategoryEnvCfg`."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.observations.critic.motion_bucket_onehot = ObsTerm(
+            func=mdp.motion_bucket_onehot_for_critic, params={"command_name": "motion"}
+        )
 
 
 @configclass

@@ -585,14 +585,21 @@ def set_slot_based_env_origins(
 
     # Map env i -> slot: use motion_to_slot when provided (by-exp layout), else env_id % num_slots
     motion_to_slot = getattr(spawn, "motion_to_slot", None) if spawn else None
+    motion_ids: torch.Tensor | None = None
+    num_motions: int | None = None
     if motion_to_slot is not None and len(motion_to_slot) > 0:
         motion_to_slot_t = torch.tensor(motion_to_slot, device=origins.device, dtype=torch.long)
-        num_motions = len(motion_to_slot_t)
+        num_motions = int(motion_to_slot_t.shape[0])
         motion_ids = torch.arange(scene.num_envs, device=origins.device, dtype=torch.long) % num_motions
         indices = motion_to_slot_t[motion_ids]
     else:
         indices = torch.arange(scene.num_envs, device=origins.device, dtype=torch.long) % num_slots
     scene._default_env_origins = slot_origins[indices].clone()
+
+    # Note: motion_extra_origin_xy on terrain spawn is not applied here. Terrain meshes are translated
+    # once in spawn_multi_terrain_per_env to slot grid positions only; adding per-motion XY to env_origins
+    # would move the robot/proxy without moving /World/terrains/slot_* prims -> misaligned contacts/height.
+
     print(f"[INFO]: Env origins: {num_slots} slots near origin (spacing={env_spacing}m), envs share by slot (i % {num_slots})", flush=True)
 
 

@@ -16,6 +16,11 @@ the environment setup and terrain.
 
     # With object proxy (binded multi-object task)
     python scripts/browse_env.py --task Tracking-3pt-Binded-Multi-Object-G1-v0 --motion_dir omomo_box --object_folder omomo_object/omomo_box
+
+    # Merged terrain+object folder (same --object_terrain_folder as train.py / play.py)
+    python scripts/browse_env.py --task Tracking-3pt-Binded-Multi-Terrain-Object-Merged-G1-v0 \
+        --motion_dir bones_box --terrain_folder lafan_terrain/box --object_folder omomo_object/box \
+        --object_terrain_folder bones_box
 """
 
 """Launch Isaac Sim Simulator first."""
@@ -42,6 +47,13 @@ parser.add_argument(
     type=str,
     default=None,
     help="Path to object folder (proxy URDFs + fitted trajectories). For binded multi-object task, pairs with motion_dir by base name.",
+)
+parser.add_argument(
+    "--object_terrain_folder",
+    type=str,
+    default=None,
+    help="Merged asset folder (per-motion terrain URDF, thin-plate proxy, *_object_fitted.npz, combined "
+    "*_contact_nodes.npy). Same as train.py / play.py --object_terrain_folder; merged with terrain/object dirs.",
 )
 parser.add_argument(
     "--env_spacing",
@@ -208,13 +220,16 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         if hasattr(env_cfg, "setup_motion_terrain_pairs"):
             env_cfg.motion_dir = args_cli.motion_dir
             env_cfg.terrain_folder_path = args_cli.terrain_folder or args_cli.motion_dir
-            # object_folder_path: explicit --object_folder, or fallback to terrain_folder for combined config
+            # object_folder_path: explicit --object_folder, or fallback; empty when only --object_terrain_folder
             if hasattr(env_cfg, "object_folder_path"):
-                env_cfg.object_folder_path = (
-                    args_cli.object_folder
-                    if args_cli.object_folder
-                    else (args_cli.terrain_folder or args_cli.motion_dir)
-                )
+                if args_cli.object_folder:
+                    env_cfg.object_folder_path = args_cli.object_folder
+                elif getattr(args_cli, "object_terrain_folder", None):
+                    env_cfg.object_folder_path = ""
+                else:
+                    env_cfg.object_folder_path = args_cli.terrain_folder or args_cli.motion_dir
+            if hasattr(env_cfg, "object_terrain_folder_path"):
+                env_cfg.object_terrain_folder_path = getattr(args_cli, "object_terrain_folder", None) or ""
             env_cfg.setup_motion_terrain_pairs()
             num_pairs = len(env_cfg.commands.motion.motion_files)
             # num_envs must be >= 1 (InteractiveScene requires non-empty env_prim_paths)
@@ -244,8 +259,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         if motion_files is not None and len(motion_files) == 0:
             print(
                 "[ERROR]: No motion files loaded. This task requires --motion_dir (and for combined "
-                "terrain+object: --terrain_folder, --object_folder). Ensure paths exist and "
-                "setup_motion_terrain_pairs() succeeds."
+                "terrain+object: --terrain_folder, --object_folder, optional --object_terrain_folder). "
+                "Ensure paths exist and setup_motion_terrain_pairs() succeeds."
             )
             sys.exit(1)
 

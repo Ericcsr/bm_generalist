@@ -33,6 +33,13 @@ parser.add_argument(
     help="Path to object folder (proxy URDFs + fitted trajectories). For binded multi-object task, pairs with motion_dir by base name.",
 )
 parser.add_argument(
+    "--object_terrain_folder",
+    type=str,
+    default=None,
+    help="Merged asset folder (per-motion terrain URDF, thin-plate proxy, *_object_fitted.npz, combined "
+    "*_contact_nodes.npy). Same as train.py; merged with --terrain_folder / --object_folder for mixed datasets.",
+)
+parser.add_argument(
     "--contact_label_debug_vis",
     action="store_true",
     default=False,
@@ -233,13 +240,15 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         # Binded multi-terrain / multi-object: pair motions with terrains/objects by base name
         env_cfg.motion_dir = args_cli.motion_dir
         env_cfg.terrain_folder_path = args_cli.terrain_folder or args_cli.motion_dir
-        # object_folder_path: explicit --object_folder, or fallback to terrain_folder for combined config
         if hasattr(env_cfg, "object_folder_path"):
-            env_cfg.object_folder_path = (
-                args_cli.object_folder
-                if args_cli.object_folder
-                else (args_cli.terrain_folder or args_cli.motion_dir)
-            )
+            if args_cli.object_folder:
+                env_cfg.object_folder_path = args_cli.object_folder
+            elif getattr(args_cli, "object_terrain_folder", None):
+                env_cfg.object_folder_path = ""
+            else:
+                env_cfg.object_folder_path = args_cli.terrain_folder or args_cli.motion_dir
+        if hasattr(env_cfg, "object_terrain_folder_path"):
+            env_cfg.object_terrain_folder_path = getattr(args_cli, "object_terrain_folder", None) or ""
         if hasattr(env_cfg, "physics_phase_flag"):
             env_cfg.physics_phase_flag = getattr(args_cli, "physics_phase", False)
             if env_cfg.physics_phase_flag:

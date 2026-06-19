@@ -535,11 +535,213 @@ class G1Flat3ptBindedMultiTerrainObjectEnvCfg(Tracking3ptBindedMultiTerrainObjec
 
 
 @configclass
+class EmptyCurriculumCfg:
+    """Curriculum with no terms (used when wrist-mismatch curriculum does not apply)."""
+
+
+@configclass
+class G1Flat3ptBindedMultiTerrainObjectUnilateralContactEnvCfg(G1Flat3ptBindedMultiTerrainObjectEnvCfg):
+    """Multi-terrain-object variant using unilateral foot contact rewards.
+
+    Replaces foot contact rewards so they only reward true positives:
+    desired foot contact label active AND actual foot contact active.
+    """
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.rewards.contact_label_contact_foot = RewTerm(
+            func=mdp.unilateral_contact_label_contact_reward,
+            weight=0.5,
+            params={
+                "command_name": "motion",
+                "sensor_cfg": mdp.SceneEntityCfg(
+                    "contact_forces",
+                    body_names=["left_ankle_roll_link", "right_ankle_roll_link"],
+                ),
+                "threshold": 1.0,
+                "contact_indices": [0, 1],
+            },
+        )
+        self.rewards.contact_label_contact_duration_foot = RewTerm(
+            func=mdp.unilateral_contact_label_contact_duration_reward,
+            weight=0.25,
+            params={
+                "command_name": "motion",
+                "sensor_cfg": mdp.SceneEntityCfg(
+                    "contact_forces",
+                    body_names=["left_ankle_roll_link", "right_ankle_roll_link"],
+                ),
+                "threshold": 1.0,
+                "contact_indices": [0, 1],
+                "max_duration_s": 0.5,
+            },
+        )
+
+
+@configclass
+class G1Flat3ptBindedMultiTerrainObjectUnilateralContact5SeatEnvCfg(
+    G1Flat3ptBindedMultiTerrainObjectUnilateralContactEnvCfg
+):
+    """5-D contact labels (feet, hands, seat), unilateral foot + seat rewards, merged-folder friendly.
+
+    - Loads ``contact_mask`` with **5** columns; 4-column files get a fifth column of ``False``.
+    - Seat (column 4): unilateral reward only when the reference wants seat contact **and** either
+      ``left_hip_pitch_link`` or ``right_hip_pitch_link`` has terrain contact (force threshold).
+    - **Undesired contacts** exclude hip-pitch links so seated hips are not penalized.
+
+    Train/browse like the merged terrain+object task: set ``--motion_dir``, optional
+    ``--terrain_folder`` / ``--object_folder``, and ``--object_terrain_folder`` for CSV / merged exports.
+
+    Gym id: ``Tracking-3pt-Binded-Multi-Terrain-Object-Unilateral-Contact-5Seat-G1-v0``.
+    """
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.commands.motion.contact_label_num_dims = 5
+        self.rewards.contact_label_contact_seat = RewTerm(
+            func=mdp.unilateral_contact_label_contact_reward_seat_support,
+            weight=0.5,
+            params={
+                "command_name": "motion",
+                "sensor_cfg": mdp.SceneEntityCfg(
+                    "contact_forces",
+                    body_names=["left_hip_pitch_link", "right_hip_pitch_link"],
+                ),
+                "threshold": 1.0,
+                "contact_label_col": 4,
+            },
+        )
+        self.rewards.contact_label_contact_duration_seat = RewTerm(
+            func=mdp.unilateral_contact_label_contact_duration_reward_seat_support,
+            weight=0.25,
+            params={
+                "command_name": "motion",
+                "sensor_cfg": mdp.SceneEntityCfg(
+                    "contact_forces",
+                    body_names=["left_hip_pitch_link", "right_hip_pitch_link"],
+                ),
+                "threshold": 1.0,
+                "contact_label_col": 4,
+                "max_duration_s": 0.5,
+            },
+        )
+        self.rewards.undesired_contacts = RewTerm(
+            func=mdp.undesired_contacts,
+            weight=-0.1,
+            params={
+                "sensor_cfg": mdp.SceneEntityCfg(
+                    "contact_forces",
+                    body_names=[
+                        r"^(?!left_ankle_roll_link$)(?!right_ankle_roll_link$)(?!left_wrist_yaw_link$)"
+                        r"(?!right_wrist_yaw_link$)(?!left_hip_pitch_link$)(?!right_hip_pitch_link$).+$"
+                    ],
+                ),
+                "threshold": 1.0,
+            },
+        )
+
+
+@configclass
+class G1Flat3ptBindedMultiTerrainObjectUnilateralContact2BitEnvCfg(
+    G1Flat3ptBindedMultiTerrainObjectUnilateralContactEnvCfg
+):
+    """Unilateral foot contact rewards + 2-bit policy/critic contact observation (8 floats).
+
+    Same contact rewards as :class:`G1Flat3ptBindedMultiTerrainObjectUnilateralContactEnvCfg`;
+    observation matches :class:`G1Flat3ptBindedMultiTerrainObject2BitContactEnvCfg`.
+
+    Register id: ``Tracking-3pt-Binded-Multi-Terrain-Object-Unilateral-Contact-2Bit-G1-v0``.
+    """
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.observations.policy.contact_label = ObsTerm(
+            func=mdp.contact_label_env_object_2bit, params={"command_name": "motion"}
+        )
+        self.observations.critic.contact_label = ObsTerm(
+            func=mdp.contact_label_env_object_2bit, params={"command_name": "motion"}
+        )
+
+
+@configclass
+class G1Flat3ptBindedMultiTerrainObjectUnilateralContact5Seat2BitEnvCfg(
+    G1Flat3ptBindedMultiTerrainObjectUnilateralContact5SeatEnvCfg
+):
+    """5-seat unilateral rewards + 2-bit contact observation.
+
+    Observation is **10 floats** when labels have 5 columns: eight link bits plus
+    ``[seat_env, seat_obj]`` (seat_obj is 0; terrain/chair seating).
+
+    Register id: ``Tracking-3pt-Binded-Multi-Terrain-Object-Unilateral-Contact-5Seat-2Bit-G1-v0``.
+    """
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.observations.policy.contact_label = ObsTerm(
+            func=mdp.contact_label_env_object_2bit, params={"command_name": "motion"}
+        )
+        self.observations.critic.contact_label = ObsTerm(
+            func=mdp.contact_label_env_object_2bit, params={"command_name": "motion"}
+        )
+
+
+@configclass
+class G1Flat3ptBindedMultiTerrainObjectNoContactBaselineEnvCfg(
+    G1Flat3ptBindedMultiTerrainObjectUnilateralContact5Seat2BitEnvCfg
+):
+    """5-seat 2-bit baseline with contact labels/rewards/termination disabled.
+
+    The observation keeps the current 10-float 2-bit contact slot but fills it with zeros.
+    """
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.observations.policy.contact_label = ObsTerm(
+            func=mdp.contact_label_env_object_2bit_zeroed, params={"command_name": "motion"}
+        )
+        self.observations.critic.contact_label = ObsTerm(
+            func=mdp.contact_label_env_object_2bit_zeroed, params={"command_name": "motion"}
+        )
+        self.rewards.contact_label_contact_foot.weight = 0.0
+        self.rewards.contact_label_contact_wrist.weight = 0.0
+        self.rewards.contact_label_contact_duration_foot.weight = 0.0
+        self.rewards.contact_label_contact_duration_wrist.weight = 0.0
+        self.rewards.contact_label_contact_seat.weight = 0.0
+        self.rewards.contact_label_contact_duration_seat.weight = 0.0
+        if hasattr(self.terminations, "bad_wrist_contact_mismatch"):
+            delattr(self.terminations, "bad_wrist_contact_mismatch")
+        self.curriculum = EmptyCurriculumCfg()
+
+
+@configclass
+class G1Flat3ptBindedMultiTerrainObjectUnilateralContactNoFootContactBaselineEnvCfg(
+    G1Flat3ptBindedMultiTerrainObjectUnilateralContact5Seat2BitEnvCfg
+):
+    """5-seat 2-bit baseline with foot contact labels/rewards disabled.
+
+    Wrist and seat contact labels, rewards, termination, and curriculum follow the current
+    ``Unilateral-Contact-5Seat-2Bit`` config.
+    """
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.rewards.contact_label_contact_foot.weight = 0.0
+        self.rewards.contact_label_contact_duration_foot.weight = 0.0
+        self.observations.policy.contact_label = ObsTerm(
+            func=mdp.contact_label_env_object_2bit_feet_zeroed, params={"command_name": "motion"}
+        )
+        self.observations.critic.contact_label = ObsTerm(
+            func=mdp.contact_label_env_object_2bit_feet_zeroed, params={"command_name": "motion"}
+        )
+
+
+@configclass
 class G1Flat3ptBindedMultiTerrainObject2BitContactEnvCfg(G1Flat3ptBindedMultiTerrainObjectEnvCfg):
     """Same as multi-terrain-object, but contact label observation is 2-bit per link.
 
     Output layout:
-    [L_foot_env, L_foot_obj, R_foot_env, R_foot_obj, L_wrist_env, L_wrist_obj, R_wrist_env, R_wrist_obj]
+    [L_foot_env, L_foot_obj, R_foot_env, R_foot_obj, L_wrist_env, L_wrist_obj, R_wrist_env, R_wrist_obj].
+    With 5-column reference labels, :func:`mdp.contact_label_env_object_2bit` appends ``seat_env``, ``seat_obj``.
     """
 
     def __post_init__(self):

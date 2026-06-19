@@ -2,7 +2,8 @@
 
 The input retargeted motion data has:
 - Schema: ['qpos', 'fps']
-- qpos format: MuJoCo order (root_pos[3], root_quat[4], joint_pos[29])
+- qpos format: MuJoCo order (root_pos[3], root_quat[4], joint_pos[29]) by default.
+  With ``--rot_first``: (root_quat[4], root_pos[3], joint_pos[29]) — quaternion wxyz then translation.
 - qpos shape: (T, 36) where T is number of frames
 
 The output training data has:
@@ -44,6 +45,11 @@ parser.add_argument("--output_name", type=str, required=True, help="The name of 
 parser.add_argument("--output_fps", type=int, default=50, help="The fps of the output motion.")
 parser.add_argument("--terrain_urdf", type=str, default=None, help="Path to terrain URDF file (optional)")
 parser.add_argument("--terrain_prim_path", type=str, default="/World/Terrain", help="Prim path for terrain in IsaacLab")
+parser.add_argument(
+    "--rot_first",
+    action="store_true",
+    help="Interpret qpos root as quaternion (wxyz, 4) then position (xyz, 3); default is position then quaternion.",
+)
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -147,7 +153,7 @@ def load_retargeted_motion(motion_file: str, device: str = "cpu"):
     Returns:
         Dictionary with:
         - fps: frames per second
-        - qpos: (T, N) array where N = 3 (pos) + 4 (quat) + num_joints
+        - qpos: (T, N) array; root is 3 pos + 4 quat + joints, or 4 quat + 3 pos + joints if ``--rot_first``
         - joint_pos: (T, num_joints) array in IsaacLab joint order
         - root_pos: (T, 3) array
         - root_quat: (T, 4) array (w, x, y, z)
@@ -221,11 +227,17 @@ def load_retargeted_motion(motion_file: str, device: str = "cpu"):
     num_dof = qpos.shape[1]
     
     # Extract root position and quaternion
-    root_pos = qpos[:, 0:3] #+ np.array([0.0, 0.0, 0.15])  # (T, 3)
-    root_quat = qpos[:, 3:7]  # (T, 4) - MuJoCo format: w, x, y, z
-    
+    if args_cli.rot_first:
+        root_quat = qpos[:, 0:4]  # (T, 4) w, x, y, z
+        root_pos = qpos[:, 4:7]  # (T, 3)
+        joint_slice_start = 7
+    else:
+        root_pos = qpos[:, 0:3]  # (T, 3)
+        root_quat = qpos[:, 3:7]  # (T, 4) w, x, y, z
+        joint_slice_start = 7
+
     # Extract joint positions (MuJoCo order)
-    mujoco_joint_pos = qpos[:, 7:36]  # (T, num_joints)
+    mujoco_joint_pos = qpos[:, joint_slice_start:36]  # (T, num_joints)
     num_joints = mujoco_joint_pos.shape[1]
     
     # Convert joint order from MuJoCo to IsaacLab

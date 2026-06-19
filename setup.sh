@@ -4,7 +4,8 @@ pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorc
 pip install --upgrade pip
 pip install 'isaacsim[all,extscache]==4.5.0' --extra-index-url https://pypi.nvidia.com
 cd ..
-git clone git@github.com:isaac-sim/IsaacLab.git
+pip install pip==23
+pip install setuptools==65
 cd IsaacLab
 git checkout v2.2.0
 sudo apt install cmake build-essential

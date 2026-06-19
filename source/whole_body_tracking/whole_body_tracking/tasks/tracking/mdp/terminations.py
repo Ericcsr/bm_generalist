@@ -30,6 +30,7 @@ def bad_wrist_contact_mismatch_duration(
     threshold: float = 1.0,
     contact_indices: list[int] | None = None,
     max_mismatch_steps: int = 50,
+    only_object_motions: bool = False,
 ) -> torch.Tensor:
     """Terminate after ``max_mismatch_steps`` consecutive **control** steps of mismatch.
 
@@ -41,6 +42,10 @@ def bad_wrist_contact_mismatch_duration(
     resets to 0 for that env.
 
     Returns False for all envs when contact labels are not loaded.
+
+    If ``only_object_motions=True``, mismatch is checked only for envs whose bound motion
+    category is object (category id 1 in ``env.cfg.motion_category_per_motion``). Terrain
+    and free-space motions are bypassed.
     """
     scene_id = id(env.scene)
     num_envs = env.scene.num_envs
@@ -70,8 +75,19 @@ def bad_wrist_contact_mismatch_duration(
     net_forces = contact_sensor.data.net_forces_w_history[:, :, sensor_cfg.body_ids, :]
     actual_contact = (torch.max(torch.norm(net_forces, dim=-1), dim=1)[0] > threshold).float()
 
+    active_mask = torch.ones(num_envs, dtype=torch.bool, device=device)
+    if only_object_motions:
+        active_mask = torch.zeros(num_envs, dtype=torch.bool, device=device)
+        motion_ids = getattr(command, "motion_ids", None)
+        motion_cats = getattr(env.cfg, "motion_category_per_motion", None) or []
+        if motion_ids is not None and len(motion_cats) == int(getattr(command.motion, "num_motions", len(motion_cats))):
+            cats_t = torch.as_tensor(motion_cats, device=device, dtype=torch.long)
+            active_mask = cats_t[motion_ids] == 1
+        # Always clear counters for bypassed envs.
+        accum[~active_mask] = 0
+
     full_match = (desired_contact == actual_contact).all(dim=-1)
-    mismatch = ~full_match
+    mismatch = (~full_match) & active_mask
 
     first_step = env.episode_length_buf == 1
     accum[first_step] = 0
@@ -79,7 +95,7 @@ def bad_wrist_contact_mismatch_duration(
     accum = torch.where(mismatch, accum + 1, torch.zeros_like(accum))
     _wrist_contact_mismatch_steps[scene_id] = accum
 
-    return accum >= max_mismatch_steps
+    return (accum >= max_mismatch_steps) & active_mask
 
 
 def motion_ended(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:

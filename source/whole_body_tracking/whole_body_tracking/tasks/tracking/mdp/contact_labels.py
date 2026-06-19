@@ -65,6 +65,34 @@ def _entity_to_column(label: str, joint_name: str) -> int | None:
     return None
 
 
+def _entity_to_column_with_seat(label: str, joint_name: str, num_cols: int) -> int | None:
+    """Like ``_entity_to_column`` plus column 4 = seat / pelvis vs terrain when ``num_cols >= 5``."""
+    base = _entity_to_column(label, joint_name)
+    if base is not None:
+        return base
+    if num_cols < 5:
+        return None
+    jn = (joint_name or "").lower()
+    if label in ("pelvis_terrain", "seat") or "hip_pitch" in jn or jn == "hips_seat_support":
+        return 4
+    return None
+
+
+def _normalize_contact_mask(mask: np.ndarray, num_frames: int, num_cols: int) -> np.ndarray:
+    """Time-align to ``num_frames`` and width to ``num_cols`` (pad missing columns with False)."""
+    m = np.asarray(mask, dtype=bool)
+    if m.ndim == 1:
+        m = m.reshape(-1, 1)
+    if m.ndim != 2:
+        return np.zeros((num_frames, num_cols), dtype=bool)
+    t, c = m.shape[0], m.shape[1]
+    out = np.zeros((num_frames, num_cols), dtype=bool)
+    nt = min(t, num_frames)
+    nc = min(c, num_cols)
+    out[:nt, :nc] = m[:nt, :nc]
+    return out
+
+
 def _merge_nodes_to_mask(
     nodes: list,
     num_frames: int,
@@ -72,9 +100,11 @@ def _merge_nodes_to_mask(
     max_spatial_dist: float = 0.15,
     gap_fill_frames: int = 5,
     min_contact_duration_frames: int = 6,
+    num_cols: int = 4,
 ) -> np.ndarray:
     """Merge temporally/spatially adjacent contact nodes to reduce blinking (same logic as contact_label_merge)."""
-    mask = np.zeros((num_frames, 4), dtype=bool)
+    num_cols = max(4, int(num_cols))
+    mask = np.zeros((num_frames, num_cols), dtype=bool)
     groups: dict[tuple[str, str], list[tuple[int, np.ndarray]]] = {}
     for node in nodes:
         ts = node.get("timestamp", 0)
@@ -82,7 +112,7 @@ def _merge_nodes_to_mask(
         entity = node.get("entity_info", {})
         joint_name = entity.get("joint_name", "")
         pos = np.asarray(node.get("position", [0, 0, 0]), dtype=float)
-        col = _entity_to_column(label, joint_name)
+        col = _entity_to_column_with_seat(label, joint_name, num_cols)
         if col is None or ts < 0 or ts >= num_frames:
             continue
         key = (label, joint_name)
@@ -91,7 +121,7 @@ def _merge_nodes_to_mask(
         groups[key].append((ts, pos))
 
     for key, items in groups.items():
-        col = _entity_to_column(key[0], key[1])
+        col = _entity_to_column_with_seat(key[0], key[1], num_cols)
         if col is None:
             continue
         items.sort(key=lambda x: x[0])
@@ -157,16 +187,18 @@ def load_contact_labels_for_motion(
     terrain_folder: str | Path,
     motion_stem: str,
     num_frames: int,
+    num_label_dims: int = 4,
 ) -> np.ndarray | None:
-    """Load contact nodes and build per-frame mask (T, 4): [left_foot, right_foot, left_wrist, right_wrist].
+    """Load contact nodes and build per-frame boolean mask.
 
     Args:
         terrain_folder: Path to terrain folder (contains {motion_stem}_contact_nodes.npy).
         motion_stem: Base name of motion (e.g. motion_0).
         num_frames: Number of frames in motion (for output shape).
+        num_label_dims: Width of mask (4 = feet+hands; 5 adds seat / pelvis-terrain column).
 
     Returns:
-        (T, 4) bool array, or None if contact file not found or empty.
+        (num_frames, num_label_dims) bool array, or None if contact file not found or empty.
     """
     terrain_folder = Path(terrain_folder)
     contact_path = terrain_folder / f"{motion_stem}_contact_nodes.npy"
@@ -175,6 +207,8 @@ def load_contact_labels_for_motion(
     if not contact_path.exists():
         return None
 
+    num_label_dims = max(1, int(num_label_dims))
+
     data = np.load(str(contact_path), allow_pickle=True)
     if isinstance(data, np.ndarray) and data.ndim == 0:
         data = data.item()
@@ -182,13 +216,7 @@ def load_contact_labels_for_motion(
     # Prefer merged contact_mask if present (reduces frame-to-frame flicker)
     if "contact_mask" in data:
         mask = np.asarray(data["contact_mask"], dtype=bool)
-        if mask.shape != (num_frames, 4):
-            # Truncate or pad to match motion length (motion may have different frame count)
-            out = np.zeros((num_frames, 4), dtype=bool)
-            n = min(mask.shape[0], num_frames)
-            out[:n] = mask[:n]
-            return out
-        return mask
+        return _normalize_contact_mask(mask, num_frames, num_label_dims)
 
     if "nodes" not in data or len(data["nodes"]) == 0:
         return None
@@ -203,6 +231,7 @@ def load_contact_labels_for_motion(
         max_spatial_dist=0.15,
         gap_fill_frames=5,
         min_contact_duration_frames=6,  # 0.2s at 30fps
+        num_cols=num_label_dims,
     )
     return mask
 
@@ -211,26 +240,29 @@ def load_contact_labels_for_motions(
     terrain_folder: str | Path,
     motion_files: Sequence[str],
     num_frames_per_motion: Sequence[int],
+    num_label_dims: int = 4,
 ) -> np.ndarray | None:
-    """Load contact labels for multiple motions and concatenate into single (T_total, 4) array.
+    """Load contact labels for multiple motions and concatenate into a single (T_total, C) array.
 
     Args:
         terrain_folder: Path to terrain folder.
         motion_files: List of motion file paths (e.g. [/path/motion_0.npz, ...]).
         num_frames_per_motion: Number of frames for each motion.
+        num_label_dims: Mask width (4 or 5).
 
     Returns:
-        (T_total, 4) bool array, or None if no contact files found.
+        (T_total, num_label_dims) bool array, or None if no contact files found.
     """
     terrain_folder = Path(terrain_folder)
+    num_label_dims = max(1, int(num_label_dims))
     masks = []
     for motion_path, nf in zip(motion_files, num_frames_per_motion):
         stem = Path(motion_path).stem
-        m = load_contact_labels_for_motion(terrain_folder, stem, nf)
+        m = load_contact_labels_for_motion(terrain_folder, stem, nf, num_label_dims=num_label_dims)
         if m is not None:
             masks.append(m)
         else:
-            masks.append(np.zeros((nf, 4), dtype=bool))
+            masks.append(np.zeros((nf, num_label_dims), dtype=bool))
 
     if not masks:
         return None
@@ -242,6 +274,7 @@ def load_contact_labels_for_motions_dual_folder(
     object_folder: str | Path,
     motion_files: Sequence[str],
     num_frames_per_motion: Sequence[int],
+    num_label_dims: int = 4,
 ) -> np.ndarray | None:
     """Load contact labels for multiple motions, trying object_folder first then terrain_folder.
 
@@ -254,22 +287,24 @@ def load_contact_labels_for_motions_dual_folder(
         object_folder: Path to object folder (contact nodes from OMOMO object pipeline).
         motion_files: List of motion file paths.
         num_frames_per_motion: Number of frames for each motion.
+        num_label_dims: Mask width (4 or 5).
 
     Returns:
-        (T_total, 4) bool array, or None if both folders empty/invalid.
+        (T_total, num_label_dims) bool array, or None if both folders empty/invalid.
     """
     terrain_folder = Path(terrain_folder)
     object_folder = Path(object_folder)
+    num_label_dims = max(1, int(num_label_dims))
     masks = []
     for motion_path, nf in zip(motion_files, num_frames_per_motion):
         stem = Path(motion_path).stem
-        m = load_contact_labels_for_motion(object_folder, stem, nf)
+        m = load_contact_labels_for_motion(object_folder, stem, nf, num_label_dims=num_label_dims)
         if m is None:
-            m = load_contact_labels_for_motion(terrain_folder, stem, nf)
+            m = load_contact_labels_for_motion(terrain_folder, stem, nf, num_label_dims=num_label_dims)
         if m is not None:
             masks.append(m)
         else:
-            masks.append(np.zeros((nf, 4), dtype=bool))
+            masks.append(np.zeros((nf, num_label_dims), dtype=bool))
 
     if not masks:
         return None
@@ -280,19 +315,21 @@ def load_contact_labels_for_motions_priority_folders(
     folders: Sequence[str | Path],
     motion_files: Sequence[str],
     num_frames_per_motion: Sequence[int],
+    num_label_dims: int = 4,
 ) -> np.ndarray | None:
     """Scan ``folders`` in order; first existing ``{stem}_contact_nodes.npy`` wins per motion."""
     resolved = [Path(f).resolve() for f in folders if str(f).strip()]
     resolved = [p for p in resolved if p.is_dir()]
     if not resolved:
         return None
+    num_label_dims = max(1, int(num_label_dims))
     masks = []
     for motion_path, nf in zip(motion_files, num_frames_per_motion):
         stem = Path(motion_path).stem
         m = None
         for folder in resolved:
-            m = load_contact_labels_for_motion(folder, stem, nf)
+            m = load_contact_labels_for_motion(folder, stem, nf, num_label_dims=num_label_dims)
             if m is not None:
                 break
-        masks.append(m if m is not None else np.zeros((nf, 4), dtype=bool))
+        masks.append(m if m is not None else np.zeros((nf, num_label_dims), dtype=bool))
     return np.concatenate(masks, axis=0)

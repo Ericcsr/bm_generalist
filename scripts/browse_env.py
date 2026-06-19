@@ -21,6 +21,11 @@ the environment setup and terrain.
     python scripts/browse_env.py --task Tracking-3pt-Binded-Multi-Terrain-Object-Merged-G1-v0 \
         --motion_dir bones_box --terrain_folder lafan_terrain/box --object_folder omomo_object/box \
         --object_terrain_folder bones_box
+
+    # 5-D contact (seat) + unilateral foot/seat; same path flags as train.py / play.py
+    python scripts/browse_env.py --task Tracking-3pt-Binded-Multi-Terrain-Object-Unilateral-Contact-5Seat-G1-v0 \
+        --motion_dir bones_seat/test --terrain_folder lafan_terrain/my_exp --object_folder omomo_object/my_exp \
+        --object_terrain_folder bones_seat/test
 """
 
 """Launch Isaac Sim Simulator first."""

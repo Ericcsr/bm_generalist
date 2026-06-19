@@ -168,6 +168,66 @@ gym.register(
 )
 
 gym.register(
+    id="Tracking-3pt-Binded-Multi-Terrain-Object-NoContact-Baseline-G1-v0",
+    entry_point="whole_body_tracking.envs:ManagerBasedRLEnvWithKinematicObjects",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": flat_env_cfg.G1Flat3ptBindedMultiTerrainObjectNoContactBaselineEnvCfg,
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1FlatPPOBindedMultiTerrainObjectRunnerCfg",
+    },
+)
+
+gym.register(
+    id="Tracking-3pt-Binded-Multi-Terrain-Object-Unilateral-Contact-G1-v0",
+    entry_point="whole_body_tracking.envs:ManagerBasedRLEnvWithKinematicObjects",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": flat_env_cfg.G1Flat3ptBindedMultiTerrainObjectUnilateralContactEnvCfg,
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1FlatPPOBindedMultiTerrainObjectRunnerCfg",
+    },
+)
+
+gym.register(
+    id="Tracking-3pt-Binded-Multi-Terrain-Object-Unilateral-Contact-NoFootContact-Baseline-G1-v0",
+    entry_point="whole_body_tracking.envs:ManagerBasedRLEnvWithKinematicObjects",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": flat_env_cfg.G1Flat3ptBindedMultiTerrainObjectUnilateralContactNoFootContactBaselineEnvCfg,
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1FlatPPOBindedMultiTerrainObjectRunnerCfg",
+    },
+)
+
+gym.register(
+    id="Tracking-3pt-Binded-Multi-Terrain-Object-Unilateral-Contact-5Seat-G1-v0",
+    entry_point="whole_body_tracking.envs:ManagerBasedRLEnvWithKinematicObjects",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": flat_env_cfg.G1Flat3ptBindedMultiTerrainObjectUnilateralContact5SeatEnvCfg,
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1FlatPPOBindedMultiTerrainObjectRunnerCfg",
+    },
+)
+
+gym.register(
+    id="Tracking-3pt-Binded-Multi-Terrain-Object-Unilateral-Contact-2Bit-G1-v0",
+    entry_point="whole_body_tracking.envs:ManagerBasedRLEnvWithKinematicObjects",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": flat_env_cfg.G1Flat3ptBindedMultiTerrainObjectUnilateralContact2BitEnvCfg,
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1FlatPPOBindedMultiTerrainObjectRunnerCfg",
+    },
+)
+
+gym.register(
+    id="Tracking-3pt-Binded-Multi-Terrain-Object-Unilateral-Contact-5Seat-2Bit-G1-v0",
+    entry_point="whole_body_tracking.envs:ManagerBasedRLEnvWithKinematicObjects",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": flat_env_cfg.G1Flat3ptBindedMultiTerrainObjectUnilateralContact5Seat2BitEnvCfg,
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1FlatPPOBindedMultiTerrainObjectRunnerCfg",
+    },
+)
+
+gym.register(
     id="Tracking-3pt-Binded-Multi-Terrain-Object-2BitContact-G1-v0",
     entry_point="whole_body_tracking.envs:ManagerBasedRLEnvWithKinematicObjects",
     disable_env_checker=True,

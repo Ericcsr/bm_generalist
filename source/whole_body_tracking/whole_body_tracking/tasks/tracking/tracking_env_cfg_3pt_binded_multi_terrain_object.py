@@ -27,6 +27,7 @@ Contact labels load in order: ``object_terrain_folder`` â†’ ``object_folder`` â†
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from dataclasses import MISSING, field
 from pathlib import Path
 
@@ -35,6 +36,7 @@ import numpy as np
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
+from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -534,6 +536,17 @@ class EventCfg:
             "num_buckets": 1,
         },
     )
+    proxy_object_mass = EventTerm(
+        func=mdp.randomize_rigid_body_mass,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("proxy_object"),
+            "mass_distribution_params": (0.2, 1.2),
+            "operation": "abs",
+            "distribution": "uniform",
+            "recompute_inertia": True,
+        },
+    )
     add_joint_default_pos = EventTerm(
         func=mdp.randomize_joint_default_pos,
         mode="startup",
@@ -677,6 +690,8 @@ class RewardsCfg:
             ),
             "threshold": 1.0,
             "contact_indices": [2, 3],
+            # Free-space motions have no contact_nodes labels (zeros); skip wrist matching reward.
+            "disable_motion_categories": [2],
         },
     )
     contact_label_contact_duration_foot = RewTerm(
@@ -704,6 +719,35 @@ class RewardsCfg:
             ),
             "threshold": 1.0,
             "contact_indices": [2, 3],
+            "max_duration_s": 0.5,
+            "disable_motion_categories": [2],
+        },
+    )
+    # Seat / pelvis-terrain (column 4): disabled by default; enabled in 5-D seat env configs.
+    contact_label_contact_seat = RewTerm(
+        func=mdp.unilateral_contact_label_contact_reward_seat_support,
+        weight=0.0,
+        params={
+            "command_name": "motion",
+            "sensor_cfg": SceneEntityCfg(
+                "contact_forces",
+                body_names=["left_hip_pitch_link", "right_hip_pitch_link"],
+            ),
+            "threshold": 1.0,
+            "contact_label_col": 4,
+        },
+    )
+    contact_label_contact_duration_seat = RewTerm(
+        func=mdp.unilateral_contact_label_contact_duration_reward_seat_support,
+        weight=0.0,
+        params={
+            "command_name": "motion",
+            "sensor_cfg": SceneEntityCfg(
+                "contact_forces",
+                body_names=["left_hip_pitch_link", "right_hip_pitch_link"],
+            ),
+            "threshold": 1.0,
+            "contact_label_col": 4,
             "max_duration_s": 0.5,
         },
     )
@@ -754,13 +798,49 @@ class TerminationsCfg:
             "threshold": 1.0,
             "contact_indices": [2, 3],
             "max_mismatch_steps": 50,
+            "only_object_motions": True,
         },
     )
 
 
+def bad_wrist_contact_mismatch_max_steps_curriculum(
+    env,
+    env_ids: Sequence[int],
+) -> int | None:
+    """After ``cfg.wrist_mismatch_strict_after_env_steps``, set ``max_mismatch_steps`` on the wrist term.
+
+    Uses ``termination_manager.get_term_cfg`` / ``set_term_cfg`` instead of
+    :class:`isaaclab.envs.mdp.modify_term_cfg` dotted paths, which can break across Isaac Lab versions
+    when termination term cfg layout differs (e.g. ``params`` vs internal accessors).
+
+    ``env.common_step_counter`` advances once per control step; default ``15000 * 24`` matches
+    15000 RSL-RL iterations when ``num_steps_per_env == 24``.
+    """
+    del env_ids
+    term_name = "bad_wrist_contact_mismatch"
+    tm = env.termination_manager
+    if term_name not in tm.active_terms:
+        return None
+    term_cfg = tm.get_term_cfg(term_name)
+    params = getattr(term_cfg, "params", None)
+    if not isinstance(params, dict):
+        return None
+    after = getattr(env.cfg, "wrist_mismatch_strict_after_env_steps", 15000 * 24)
+    target = int(getattr(env.cfg, "wrist_mismatch_strict_max_mismatch_steps", 20))
+    cur = int(params.get("max_mismatch_steps", target))
+    if env.common_step_counter > after and cur != target:
+        params["max_mismatch_steps"] = target
+        tm.set_term_cfg(term_name, term_cfg)
+        return target
+    return cur
+
+
 @configclass
 class CurriculumCfg:
-    pass
+    bad_wrist_contact_mismatch_max_steps = CurrTerm(
+        func=bad_wrist_contact_mismatch_max_steps_curriculum,
+        params={},
+    )
 
 
 ##
@@ -818,6 +898,12 @@ class Tracking3ptBindedMultiTerrainObjectEnvCfg(ManagerBasedRLEnvCfg):
     #: Reserved. Non-zero values are ignored: global terrain prims are not moved with env_origins (would
     #: misalign). Prefer adjusting ``env_spacing`` / ``num_envs`` for layout in the viewport.
     merged_object_terrain_origin_offset_xy: tuple[float, float] = (0.0, 0.0)
+    #: After this many control steps (``env.common_step_counter``), curriculum sets
+    #: ``bad_wrist_contact_mismatch`` termination ``max_mismatch_steps`` to
+    #: :attr:`wrist_mismatch_strict_max_mismatch_steps`.
+    #: Default ``15000 * 24`` matches 15000 RSL-RL iterations when ``num_steps_per_env == 24`` (see runner cfg).
+    wrist_mismatch_strict_after_env_steps: int = 15000 * 24
+    wrist_mismatch_strict_max_mismatch_steps: int = 20
     motion_category_per_motion: list[int] = field(default_factory=list)
     num_envs: int = 4096
     physics_phase_flag: bool = False

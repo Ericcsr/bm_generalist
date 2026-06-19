@@ -6,7 +6,8 @@ Contact nodes from contact_terrain_reconstruction have timestamps at source_fps
 labels must be interpolated so timestamps align with the new frame indices.
 
 - Nodes: nearest-neighbor timestamp scaling: new_timestamp = round(old_timestamp * output_fps / source_fps)
-- contact_mask: resampled to output frame count via nearest-neighbor (T_src -> T_out)
+- contact_mask: resampled to output frame count via nearest-neighbor (T_src -> T_out).
+  Supports (T, C) for any C (e.g. C=4 feet+hands, C=5 with seat / hips column).
 """
 
 import argparse
@@ -15,11 +16,12 @@ from pathlib import Path
 
 
 def _resample_contact_mask(contact_mask: np.ndarray, num_frames_target: int) -> np.ndarray:
-    """Resample contact mask (T, 4) to target frame count. Uses nearest-neighbor."""
+    """Resample contact mask (T, C) to target frame count. Uses nearest-neighbor; preserves C."""
     n_src = contact_mask.shape[0]
+    n_cols = contact_mask.shape[1]
     if num_frames_target == n_src:
         return contact_mask.copy()
-    out = np.zeros((num_frames_target, 4), dtype=bool)
+    out = np.zeros((num_frames_target, n_cols), dtype=bool)
     for i in range(num_frames_target):
         src_idx = int(i * (n_src - 1) / max(1, num_frames_target - 1))
         out[i] = contact_mask[src_idx]
@@ -75,13 +77,16 @@ def interpolate_contact_nodes(
     out_data = dict(data)
     if "contact_mask" in data:
         mask = np.asarray(data["contact_mask"], dtype=bool)
-        if mask.ndim == 2 and mask.shape[1] == 4:
+        if mask.ndim == 2 and mask.shape[0] > 0 and mask.shape[1] > 0:
             n_src = mask.shape[0]
             n_out = int(round(n_src * output_fps / source_fps))
             n_out = max(1, n_out)
             out_data["contact_mask"] = _resample_contact_mask(mask, n_out)
             if n_out != n_src:
-                print(f"[interpolate_contact_nodes] Resampled contact_mask: {n_src} -> {n_out} frames")
+                print(
+                    f"[interpolate_contact_nodes] Resampled contact_mask: "
+                    f"{n_src} -> {n_out} frames, {mask.shape[1]} label dim(s)"
+                )
         else:
             out_data["contact_mask"] = mask
 

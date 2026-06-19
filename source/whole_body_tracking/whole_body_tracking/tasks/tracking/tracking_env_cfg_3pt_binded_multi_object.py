@@ -21,6 +21,7 @@ Usage (train.py):
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import MISSING, field
 from pathlib import Path
 
@@ -35,6 +36,7 @@ from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
@@ -525,9 +527,43 @@ class TerminationsCfg:
     )
 
 
+def bad_wrist_contact_mismatch_max_steps_curriculum(
+    env,
+    env_ids: Sequence[int],
+) -> int | None:
+    """After ``cfg.wrist_mismatch_strict_after_env_steps``, set ``max_mismatch_steps`` on the wrist term.
+
+    Same semantics as ``tracking_env_cfg_3pt_binded_multi_terrain_object``: uses
+    ``termination_manager.get_term_cfg`` / ``set_term_cfg`` for compatibility across Isaac Lab versions.
+
+    ``env.common_step_counter`` advances once per control step; default ``15000 * 24`` matches
+    15000 RSL-RL iterations when ``num_steps_per_env == 24``.
+    """
+    del env_ids
+    term_name = "bad_wrist_contact_mismatch"
+    tm = env.termination_manager
+    if term_name not in tm.active_terms:
+        return None
+    term_cfg = tm.get_term_cfg(term_name)
+    params = getattr(term_cfg, "params", None)
+    if not isinstance(params, dict):
+        return None
+    after = getattr(env.cfg, "wrist_mismatch_strict_after_env_steps", 15000 * 24)
+    target = int(getattr(env.cfg, "wrist_mismatch_strict_max_mismatch_steps", 20))
+    cur = int(params.get("max_mismatch_steps", target))
+    if env.common_step_counter > after and cur != target:
+        params["max_mismatch_steps"] = target
+        tm.set_term_cfg(term_name, term_cfg)
+        return target
+    return cur
+
+
 @configclass
 class CurriculumCfg:
-    pass
+    bad_wrist_contact_mismatch_max_steps = CurrTerm(
+        func=bad_wrist_contact_mismatch_max_steps_curriculum,
+        params={},
+    )
 
 
 ##
@@ -637,6 +673,12 @@ class Tracking3ptBindedMultiObjectEnvCfg(ManagerBasedRLEnvCfg):
 
     motion_dir: str = ""
     object_folder_path: str = ""
+    #: After this many control steps (``env.common_step_counter``), curriculum sets
+    #: ``bad_wrist_contact_mismatch`` termination ``max_mismatch_steps`` to
+    #: :attr:`wrist_mismatch_strict_max_mismatch_steps`.
+    #: Default ``15000 * 24`` matches 15000 RSL-RL iterations when ``num_steps_per_env == 24``.
+    wrist_mismatch_strict_after_env_steps: int = 15000 * 24
+    wrist_mismatch_strict_max_mismatch_steps: int = 20
     num_envs: int = 4096
     physics_phase_flag: bool = False
     magic_force_use_pose_velocity_control: bool = True  # Avoid cudaErrorIllegalAddress with replicate_physics=False

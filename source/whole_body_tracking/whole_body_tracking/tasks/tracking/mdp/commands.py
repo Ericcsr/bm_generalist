@@ -74,6 +74,7 @@ class MultiMotionLoader:
         enable_contact_based_collision: bool = False,
         contact_debug_zero_out: bool = False,
         contact_debug_zero_out_env: int | None = None,
+        contact_label_num_dims: int = 4,
     ):
         assert os.path.isfile(motion_files[0]), f"Invalid file path: {motion_files[0]}"
         try:
@@ -120,13 +121,22 @@ class MultiMotionLoader:
             if p and p not in _seen:
                 _seen.add(p)
                 priority.append(p)
+        self._contact_label_num_dims = max(1, int(contact_label_num_dims))
         if len(priority) == 0:
             cl = None
         elif len(priority) == 1:
-            cl = load_contact_labels_for_motions(priority[0], motion_files, num_frames_per_motion)
+            cl = load_contact_labels_for_motions(
+                priority[0],
+                motion_files,
+                num_frames_per_motion,
+                num_label_dims=self._contact_label_num_dims,
+            )
         else:
             cl = load_contact_labels_for_motions_priority_folders(
-                priority, motion_files, num_frames_per_motion
+                priority,
+                motion_files,
+                num_frames_per_motion,
+                num_label_dims=self._contact_label_num_dims,
             )
         if cl is not None:
             # Debug: zero out contact for specified motion(s) at load time
@@ -146,7 +156,16 @@ class MultiMotionLoader:
                 src = "priority folders: " + " -> ".join(priority)
             else:
                 src = priority[0]
-            print(f"[ContactLabels] Loaded contact labels from {src} ({cl.sum(axis=0)} contacts: L/R foot, L/R wrist)")
+            sums = cl.sum(axis=0)
+            if self._contact_label_num_dims >= 5:
+                print(
+                    f"[ContactLabels] Loaded contact labels from {src} ({sums} counts: "
+                    "L_foot R_foot L_wrist R_wrist seat)"
+                )
+            else:
+                print(
+                    f"[ContactLabels] Loaded contact labels from {src} ({sums} counts: L/R foot, L/R wrist)"
+                )
 
     @property
     def body_pos_w(self) -> torch.Tensor:
@@ -173,7 +192,7 @@ class MultiMotionLoader:
 
     @property
     def contact_labels(self) -> torch.Tensor | None:
-        """Per-frame contact mask (T, 4): [left_foot, right_foot, left_wrist, right_wrist]. None if not loaded."""
+        """Per-frame contact mask (T, C): feet, hands, optional seat (C=4 or 5). None if not loaded."""
         return getattr(self, "_contact_labels", None)
 
 class MotionCommand(CommandTerm):
@@ -493,6 +512,7 @@ class MultiMotionCommand(CommandTerm):
             enable_contact_based_collision=getattr(self.cfg, "enable_contact_based_collision", False),
             contact_debug_zero_out=getattr(self.cfg, "contact_debug_zero_out", False),
             contact_debug_zero_out_env=getattr(self.cfg, "contact_debug_zero_out_env", None),
+            contact_label_num_dims=int(getattr(self.cfg, "contact_label_num_dims", 4)),
         )
         self.motion_ids = torch.randint(0, self.motion.num_motions, (self.num_envs,), device=self.device)
         #self.time_steps = torch.zeros(self.num_envs, dtype=torch.long, device=self.device) # Should be random
@@ -854,7 +874,7 @@ class MultiMotionCommand(CommandTerm):
         if cl is None:
             return None
         time_steps = self.time_steps.clamp(0, cl.shape[0] - 1)
-        return cl[time_steps]  # (num_envs, 4)
+        return cl[time_steps]  # (num_envs, C)
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         if debug_vis:
@@ -999,14 +1019,16 @@ class BindedMultiMotionCommand(MultiMotionCommand):
         if cl is None:
             return None
         time_steps = self.time_steps.clamp(0, cl.shape[0] - 1)
-        out = cl[time_steps].clone()  # (num_envs, 4)
+        out = cl[time_steps].clone()  # (num_envs, C)
         if self._wrist_dropout_mode == "episode":
             drop = self.wrist_contact_dropout_enabled
         else:
             steps = self.wrist_contact_dropout_steps_remaining
             drop = (steps > 0) if steps is not None else torch.zeros(self.num_envs, dtype=torch.bool, device=out.device)
-        out[drop, 2] = False
-        out[drop, 3] = False
+        if out.shape[1] > 2:
+            out[drop, 2] = False
+        if out.shape[1] > 3:
+            out[drop, 3] = False
         return out
 
     def _resample_command(self, env_ids: Sequence[int]):
@@ -1263,6 +1285,9 @@ class MultiMotionCommandCfg(CommandTermCfg):
 
     # Play-time ablation: zero out hand (wrist) contact labels fed to policy (compare behavior with/without)
     zero_hand_contact_label: bool = False
+
+    # Width of loaded contact_mask / policy contact obs (4 = feet+hands; 5 adds seat / pelvis-terrain).
+    contact_label_num_dims: int = 4
 
     # Training-time dropout: randomly zero wrist contact labels for some envs.
     # When > 0, on each env reset, with this probability the env gets wrist labels zeroed.

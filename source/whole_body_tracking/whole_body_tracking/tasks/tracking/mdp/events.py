@@ -1307,13 +1307,10 @@ def update_magic_force_object_poses(
     lin_vel_error = desired_lin_vel - curr_lin_vel
     force = kp_pos * pos_error + kd_pos * lin_vel_error
 
-    # Gravity compensation (Isaac Z-up: gravity = (0, 0, -9.81))
+    # Gravity compensation (Isaac Z-up: gravity = (0, 0, -9.81)).
+    # Use PhysX masses so domain-randomized proxy mass (e.g. EventTerm) matches applied force.
     if gravity_compensation:
-        mass = getattr(proxy_obj.data, "default_mass", None)
-        if mass is not None and mass.numel() > 0:
-            mass = mass.to(device)[:num_envs].view(-1, 1)
-        else:
-            mass = torch.ones(num_envs, 1, device=device)
+        mass = proxy_obj.root_physx_view.get_masses().to(device)[:num_envs].view(-1, 1)
         gravity_vec = torch.zeros(num_envs, 3, device=device)
         gravity_vec[:, 2] = -9.81
         force = force + mass * (-gravity_vec)

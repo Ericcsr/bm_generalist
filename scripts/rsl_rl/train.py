@@ -273,6 +273,18 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         print(f"[INFO]: Loading model checkpoint from: {resume_path}")
         # load previously trained model
         runner.load(resume_path)
+        # Curriculum terms that use env.common_step_counter (e.g. wrist mismatch schedule) otherwise reset to 0
+        # on a fresh env; approximate prior control steps as iteration × rollout depth (matches RSL-RL loop).
+        sim_env = env.unwrapped
+        if hasattr(sim_env, "common_step_counter"):
+            steps_per_iter = agent_cfg.num_steps_per_env
+            restored = int(runner.current_learning_iteration * steps_per_iter)
+            sim_env.common_step_counter = restored
+            print(
+                f"[INFO]: Synced common_step_counter={restored} for curriculum/time-based MDP "
+                f"(iteration={runner.current_learning_iteration}, num_steps_per_env={steps_per_iter}).",
+                flush=True,
+            )
 
     # dump the configuration into log-directory
     dump_yaml(os.path.join(log_dir, "params", "env.yaml"), env_cfg)

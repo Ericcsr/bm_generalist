@@ -16,6 +16,8 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg, RayCasterCfg, patterns
 
+from whole_body_tracking.sensors import MultiMeshRayCasterCfg
+
 ##
 # Pre-defined configs
 ##
@@ -85,9 +87,10 @@ class MultiTerrainSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True, force_threshold=10.0, debug_vis=True
     )
     # 2m x 2m height map around each robot (21x21 grid at 0.1m resolution)
-    height_scanner = RayCasterCfg(
+    # MultiMeshRayCasterCfg supports per-env terrain slots (env i -> mesh i % num_slots).
+    height_scanner = MultiMeshRayCasterCfg(
         prim_path="{ENV_REGEX_NS}/Robot/pelvis",
-        offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
+        offset=MultiMeshRayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
         ray_alignment="yaw",
         pattern_cfg=patterns.GridPatternCfg(resolution=0.2, size=[2.0, 2.0]),
         debug_vis=False,

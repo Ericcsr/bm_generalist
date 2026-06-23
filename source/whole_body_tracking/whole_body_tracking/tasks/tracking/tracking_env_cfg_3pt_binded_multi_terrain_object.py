@@ -46,6 +46,8 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg, RayCasterCfg, patterns
 
+from whole_body_tracking.sensors import MultiMeshRayCasterCfg
+
 from isaaclab.utils import configclass
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 
@@ -411,9 +413,10 @@ class CombinedTerrainObjectSceneCfg(InteractiveSceneCfg):
         filter_prim_paths_expr=["{ENV_REGEX_NS}/Robot/.*right_wrist_yaw_link"],
         history_length=1,
     )
-    height_scanner = RayCasterCfg(
+    # MultiMeshRayCasterCfg supports per-env terrain slots (env i -> mesh i % num_slots).
+    height_scanner = MultiMeshRayCasterCfg(
         prim_path="{ENV_REGEX_NS}/Robot/pelvis",
-        offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
+        offset=MultiMeshRayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
         ray_alignment="yaw",
         pattern_cfg=patterns.GridPatternCfg(resolution=0.2, size=[2.0, 2.0]),
         debug_vis=False,

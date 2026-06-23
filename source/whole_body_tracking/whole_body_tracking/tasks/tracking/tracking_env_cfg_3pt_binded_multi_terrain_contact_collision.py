@@ -14,6 +14,7 @@ from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.utils import configclass
 
 import whole_body_tracking.tasks.tracking.mdp as mdp
+from whole_body_tracking.sim import spawn_from_urdf_instanceable
 
 from .tracking_env_cfg_3pt_binded_multi_terrain import (
     EventCfg,
@@ -88,10 +89,14 @@ class Tracking3ptBindedMultiTerrainContactCollisionEnvCfg(Tracking3ptBindedMulti
             str(resolved_terrain) if resolved_terrain.exists() else self.terrain_folder_path
         )
 
-        # Contact-based collision: must disable replicate_physics and instancing
+        # Contact-based collision: must disable replicate_physics and instancing.
+        # Route spawning through spawn_from_urdf_instanceable so make_instanceable=False is honored
+        # at URDF import time (stock Isaac Lab UrdfConverter ignores the flag).
         self.scene.replicate_physics = False
         self.scene.robot = self.scene.robot.replace(
-            spawn=self.scene.robot.spawn.replace(make_instanceable=False)
+            spawn=self.scene.robot.spawn.replace(
+                make_instanceable=False, func=spawn_from_urdf_instanceable
+            )
         )
         print(
             "[ContactLabels] Set replicate_physics=False, make_instanceable=False "

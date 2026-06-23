@@ -3,6 +3,7 @@ from __future__ import annotations
 import torch
 from typing import TYPE_CHECKING
 
+from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.math import matrix_from_quat, subtract_frame_transforms, quat_apply, quat_inv, quat_mul
 
 from whole_body_tracking.tasks.tracking.mdp.commands import (
@@ -311,3 +312,19 @@ def contact_token_future(
         tokens.append(cl.float())
     out = torch.stack(tokens, dim=1)  # (num_envs, num_future_steps, C)
     return out.reshape(num_envs, -1)
+
+
+def height_scan(env: ManagerBasedEnv, sensor_cfg: SceneEntityCfg, offset: float = 0.5) -> torch.Tensor:
+    """Height scan from the given sensor w.r.t. the sensor's frame.
+
+    Local override of :func:`isaaclab.envs.mdp.height_scan` that additionally replaces missed rays
+    (``inf``) and invalid values (``nan``) with ``0.0`` to avoid policy std collapse. Keeping this
+    in the extension lets the Isaac Lab installation stay unmodified.
+
+    The provided offset (Defaults to 0.5) is subtracted from the returned values.
+    """
+    sensor = env.scene.sensors[sensor_cfg.name]
+    # height scan: height = sensor_height - hit_point_z - offset
+    height = sensor.data.pos_w[:, 2].unsqueeze(1) - sensor.data.ray_hits_w[..., 2] - offset
+    # Replace inf/nan (missed rays) with 0.0 to avoid policy std collapse
+    return torch.nan_to_num(height, nan=0.0, posinf=0.0, neginf=0.0)

@@ -699,12 +699,40 @@ def _phase_to_weight_pyramid(phase, start=0.25, end=0.75):
     weight[~(mask1 | mask2)] = 1.0
     return weight    
 
+def _motion_category_env_mask(
+    env: ManagerBasedEnv,
+    command,
+    categories: list[int] | None,
+) -> torch.Tensor | None:
+    """Boolean (num_envs,) mask of envs whose bound motion category is in ``categories``.
+
+    Uses ``env.cfg.motion_category_per_motion`` (0=terrain, 1=object, 2=free) and
+    ``command.motion_ids``. Returns ``None`` when categories/ids are unavailable or the
+    category list length does not match the number of motions (caller treats ``None`` as
+    "no restriction", preserving legacy behavior for non-multi-motion configs).
+    """
+    if not categories:
+        return None
+    motion_ids = getattr(command, "motion_ids", None)
+    motion_cats = getattr(env.cfg, "motion_category_per_motion", None) or []
+    num_motions = int(getattr(getattr(command, "motion", None), "num_motions", len(motion_cats)))
+    if motion_ids is None or len(motion_cats) == 0 or len(motion_cats) != num_motions:
+        return None
+    cats_t = torch.as_tensor(motion_cats, device=env.device, dtype=torch.long)
+    cat_per_env = cats_t[motion_ids]
+    mask = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
+    for c in categories:
+        mask |= cat_per_env == int(c)
+    return mask
+
+
 def force_based_push(
     env: ManagerBasedEnv,
     env_ids: torch.Tensor,
     force_duration: tuple[int, int],
     command_name: str,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    restrict_motion_categories: list[int] | None = None,
 ):
     """Randomize the external forces and torques applied to the bodies.
 
@@ -756,6 +784,12 @@ def force_based_push(
     positions = command.robot.data.body_pos_w[:, command.force_push_ids] + math_utils.quat_apply(
         command.robot.data.body_quat_w[:, command.force_push_ids], command.force_push_body_offsets
     )
+    # Restrict the push to the requested motion categories (e.g. free-space only). Envs outside
+    # those categories get zero force, so their last_force_applied stays 0 and their compliant
+    # VR target observation reduces to the original (non-compliant) target.
+    cat_mask = _motion_category_env_mask(env, command, restrict_motion_categories)
+    if cat_mask is not None:
+        forces = forces * cat_mask.view(-1, 1, 1).to(forces.dtype)
     command.last_force_applied.copy_(forces)
     command.force_push_counter.add_(1)
     torques = torch.zeros_like(forces)
@@ -812,7 +846,8 @@ def change_compliance(env: ManagerBasedEnv,
                       compliance_lb: tuple[float, float],
                       compliance_ub: tuple[float, float],
                       compliance_duration: tuple[int, int],
-                      start_steps: int):
+                      start_steps: int,
+                      restrict_motion_categories: list[int] | None = None):
     command: MotionCommand = env.command_manager.get_term(command_name)
     if env.common_step_counter < start_steps:
         return
@@ -822,10 +857,18 @@ def change_compliance(env: ManagerBasedEnv,
         command.compliance_lb = torch.tensor(compliance_lb, device=command.device)
         command.compliance_config_init = True
     command.compliance_counter += 1
-    update_mask = command.compliance_counter == command.compliance_duration_per_env
+    trigger_mask = command.compliance_counter == command.compliance_duration_per_env
+    # Only resample stiffness for the requested motion categories (e.g. free-space only). Envs
+    # outside those categories keep eef_stiffness_buf at its initial 0, so their compliance
+    # observation stays 0 and their compliant VR target equals the original target. Counters are
+    # still reset on trigger for all envs to keep them bounded.
+    update_mask = trigger_mask
+    cat_mask = _motion_category_env_mask(env, command, restrict_motion_categories)
+    if cat_mask is not None:
+        update_mask = trigger_mask & cat_mask
     command.eef_stiffness_buf[update_mask] = rand_float(command.eef_stiffness_buf[update_mask].shape, command.compliance_lb, command.compliance_ub, command.device)
-    command.compliance_counter[update_mask] = 0
-    command.compliance_duration_per_env[update_mask] = torch.randint(*compliance_duration, (sum(update_mask),), dtype=torch.int, device=command.device)
+    command.compliance_counter[trigger_mask] = 0
+    command.compliance_duration_per_env[trigger_mask] = torch.randint(*compliance_duration, (int(trigger_mask.sum()),), dtype=torch.int, device=command.device)
 
 
 _kinematic_object_data: dict | None = None

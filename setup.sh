@@ -6,6 +6,7 @@ pip install 'isaacsim[all,extscache]==4.5.0' --extra-index-url https://pypi.nvid
 cd ..
 pip install pip==23
 pip install setuptools==65
+git clone https://github.com/isaac-sim/IsaacLab.git
 cd IsaacLab
 git checkout v2.2.0
 sudo apt install cmake build-essential
@@ -16,5 +17,5 @@ tar -xzf unitree_description.tar.gz -C source/whole_body_tracking/whole_body_tra
 rm unitree_description.tar.gz
 pip install -e source/whole_body_tracking
 wandb login --cloud --relogin
-export WANDB_API_KEY="9b35dd09702e956a7752a96872e08787b6f7401e"
-export WANDB_ENTITY="ericcsr-bm"
+export WANDB_API_KEY=""
+export WANDB_ENTITY=""

@@ -534,6 +534,109 @@ class G1Flat3ptBindedMultiTerrainObjectEnvCfg(Tracking3ptBindedMultiTerrainObjec
         ]
 
 
+def _apply_freespace_compliance(env_cfg, free_motion_categories: list[int]) -> None:
+    """Apply free-space-only compliance training to a multi-terrain-object env config.
+
+    Adds the compliance scalar observation, switches the policy VR position target to the
+    compliant target, adds observation history to proprioception, and registers force-push +
+    compliance-resampling events restricted to ``free_motion_categories`` (0=terrain, 1=object,
+    2=free). Envs outside those categories keep ``eef_stiffness_buf``/``last_force_applied`` at 0,
+    so their compliance obs is 0 and their compliant VR target equals the original target.
+
+    Shared by all multi-terrain-object compliance variants to keep them consistent.
+    """
+    free_cats = free_motion_categories
+
+    # Compliance observation + compliant VR target.
+    env_cfg.observations.policy.compliance = ObsTerm(func=mdp.compliance, params={"command_name": "motion"})
+    env_cfg.observations.policy.vr_3point_pos = ObsTerm(
+        func=mdp.vr_3point_local_compliant_target, params={"command_name": "motion"}
+    )
+    env_cfg.observations.critic.compliance = ObsTerm(func=mdp.compliance, params={"command_name": "motion"})
+    env_cfg.observations.critic.vr_3point_pos_compliant = ObsTerm(
+        func=mdp.vr_3point_local_compliant_target, params={"command_name": "motion"}
+    )
+    env_cfg.observations.critic.vr_3point_pos = ObsTerm(
+        func=mdp.vr_3point_local_target, params={"command_name": "motion"}
+    )
+
+    # Observation history on proprioception (actor: 4 steps, critic: 10 steps).
+    actor_history_length = 4
+    critic_history_length = 10
+    env_cfg.observations.policy.gravity_dir = ObsTerm(
+        func=mdp.projected_gravity,
+        params={"command_name": "motion"},
+        noise=Unoise(n_min=-0.01, n_max=0.01),
+        history_length=actor_history_length,
+    )
+    env_cfg.observations.policy.base_ang_vel = ObsTerm(
+        func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2), history_length=actor_history_length
+    )
+    env_cfg.observations.policy.joint_pos = ObsTerm(
+        func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01), history_length=actor_history_length
+    )
+    env_cfg.observations.policy.joint_vel = ObsTerm(
+        func=mdp.joint_vel_rel, noise=Unoise(n_min=-0.5, n_max=0.5), history_length=actor_history_length
+    )
+    env_cfg.observations.policy.actions = ObsTerm(func=mdp.last_action, history_length=actor_history_length)
+
+    env_cfg.observations.critic.base_lin_vel = ObsTerm(func=mdp.base_lin_vel, history_length=critic_history_length)
+    env_cfg.observations.critic.base_ang_vel = ObsTerm(func=mdp.base_ang_vel, history_length=critic_history_length)
+    env_cfg.observations.critic.joint_pos = ObsTerm(func=mdp.joint_pos_rel, history_length=critic_history_length)
+    env_cfg.observations.critic.joint_vel = ObsTerm(func=mdp.joint_vel_rel, history_length=critic_history_length)
+    env_cfg.observations.critic.actions = ObsTerm(func=mdp.last_action, history_length=critic_history_length)
+
+    # Force push on free-space envs only (others get zero force via restrict_motion_categories).
+    env_cfg.events.force_push_robot = EventTerm(
+        func=mdp.force_based_push,
+        mode="interval",
+        interval_range_s=(0.02, 0.02),
+        params={
+            "force_duration": [50, 100],
+            "command_name": "motion",
+            "asset_cfg": mdp.SceneEntityCfg("robot", joint_names=[".*"]),
+            "restrict_motion_categories": free_cats,
+        },
+    )
+    # Compliance resampling on free-space envs only (others keep stiffness 0).
+    env_cfg.events.change_compliance = EventTerm(
+        func=mdp.change_compliance,
+        mode="interval",
+        interval_range_s=(0.02, 0.02),
+        params={
+            "command_name": "motion",
+            "compliance_lb": [0.0, 0.0, 0.0],
+            "compliance_ub": [0.05, 0.05, 0.0],
+            "compliance_duration": (100, 200),
+            "start_steps": 0,
+            "restrict_motion_categories": free_cats,
+        },
+    )
+
+
+@configclass
+class G1Flat3ptBindedMultiTerrainObjectComplianceEnvCfg(G1Flat3ptBindedMultiTerrainObjectEnvCfg):
+    """Multi-terrain-object tracking combined with free-space compliance training.
+
+    Free-space envs (motion category 2) receive an external force push and a periodically
+    resampled end-effector compliance, exactly like the BindedCompliance task. Terrain (0) and
+    object (1) envs get neither: their compliance stays 0 and no external force is applied, so
+    their compliant VR target observation reduces to the original target.
+
+    Observations add the compliance scalar and switch the policy VR position target to the
+    compliant target, with observation history on the proprioceptive terms.
+
+    Gym id: ``Tracking-3pt-Binded-Multi-Terrain-Object-Compliance-G1-v0``.
+    """
+
+    # Motion categories that receive force push + compliance (0=terrain, 1=object, 2=free).
+    free_motion_categories: list[int] = [2]
+
+    def __post_init__(self):
+        super().__post_init__()
+        _apply_freespace_compliance(self, self.free_motion_categories)
+
+
 @configclass
 class EmptyCurriculumCfg:
     """Curriculum with no terms (used when wrist-mismatch curriculum does not apply)."""
@@ -683,6 +786,29 @@ class G1Flat3ptBindedMultiTerrainObjectUnilateralContact5Seat2BitEnvCfg(
         self.observations.critic.contact_label = ObsTerm(
             func=mdp.contact_label_env_object_2bit, params={"command_name": "motion"}
         )
+
+
+@configclass
+class G1Flat3ptBindedMultiTerrainObjectUnilateralContact5Seat2BitComplianceEnvCfg(
+    G1Flat3ptBindedMultiTerrainObjectUnilateralContact5Seat2BitEnvCfg
+):
+    """5-seat 2-bit unilateral-contact task combined with free-space compliance training.
+
+    Keeps the 5-seat unilateral contact rewards and the 10-float 2-bit contact observation, and
+    adds free-space-only compliance: free-space envs (motion category 2) get an external force
+    push and resampled end-effector compliance, while terrain (0) and object (1) envs get neither
+    (compliance stays 0, compliant VR target equals the original target). Observation history is
+    added to proprioception.
+
+    Register id: ``Tracking-3pt-Binded-Multi-Terrain-Object-Unilateral-Contact-5Seat-2Bit-Compliance-G1-v0``.
+    """
+
+    # Motion categories that receive force push + compliance (0=terrain, 1=object, 2=free).
+    free_motion_categories: list[int] = [2]
+
+    def __post_init__(self):
+        super().__post_init__()
+        _apply_freespace_compliance(self, self.free_motion_categories)
 
 
 @configclass

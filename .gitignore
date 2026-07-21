@@ -47,3 +47,9 @@ contact_sequences/
 lafan_terrain/
 omomo_object/
 bones_box/
+
+.env_setup_finished
+thirdparty/
+
+sandbox/*
+data/

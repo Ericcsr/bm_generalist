@@ -3,6 +3,12 @@ set -ex
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
+# Use sudo only when not already root (the EKS container runs as root with no sudo binary)
+SUDO=""
+if [[ "$(id -u)" -ne 0 ]]; then
+  SUDO="sudo"
+fi
+
 # Create overall workspace
 WORKSPACE_DIR=$SCRIPT_DIR/thirdparty
 CONDA_ROOT=$WORKSPACE_DIR/miniconda3
@@ -53,7 +59,7 @@ if [[ ! -f $SENTINEL_FILE ]]; then
     git clone https://github.com/isaac-sim/IsaacLab.git --branch v2.2.0 $WORKSPACE_DIR/IsaacLab
   fi
 
-  sudo apt install -y cmake build-essential
+  $SUDO apt install -y cmake build-essential
   cd $WORKSPACE_DIR/IsaacLab
   ./isaaclab.sh --install
 
@@ -66,7 +72,7 @@ if [[ ! -f $SENTINEL_FILE ]]; then
   # Install the project
   python -m pip install -e source/whole_body_tracking
 
-  sudo apt-get install -y libglu1-mesa libxi6 libxrender1 libxrandr2 libxxf86vm1 libxcursor1 libsm6 libice6 unzip
+  $SUDO apt-get install -y libglu1-mesa libxi6 libxrender1 libxrandr2 libxxf86vm1 libxcursor1 libsm6 libice6 unzip
 
   # Download and unpack datasets from S3 into data/
   # Uploaded via, e.g.: aws s3 cp motion_dir.zip s3://far-research-internal/sihengz/datasets

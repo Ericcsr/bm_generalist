@@ -66,7 +66,32 @@ if [[ ! -f $SENTINEL_FILE ]]; then
   # Install the project
   python -m pip install -e source/whole_body_tracking
 
-  sudo apt-get install -y libglu1-mesa libxi6 libxrender1 libxrandr2 libxxf86vm1 libxcursor1 libsm6 libice6
+  sudo apt-get install -y libglu1-mesa libxi6 libxrender1 libxrandr2 libxxf86vm1 libxcursor1 libsm6 libice6 unzip
+
+  # Download and unpack datasets from S3 into data/
+  # Uploaded via, e.g.: aws s3 cp motion_dir.zip s3://far-research-internal/sihengz/datasets
+  # far-asimov (default) profile is denied on this bucket; far-compute has read access.
+  S3_DATASET_URI="s3://far-research-internal/sihengz/datasets"
+  S3_PROFILE="${S3_PROFILE:-far-compute}"
+  DATA_DIR=$SCRIPT_DIR/data
+  mkdir -p $DATA_DIR
+
+  cd $SCRIPT_DIR
+  AWS_PROFILE=$S3_PROFILE aws s3 cp $S3_DATASET_URI/motion_dir.zip $DATA_DIR/motion_dir.zip
+  unzip -o -q $DATA_DIR/motion_dir.zip -d $DATA_DIR
+  rm $DATA_DIR/motion_dir.zip
+
+  AWS_PROFILE=$S3_PROFILE aws s3 cp $S3_DATASET_URI/object_folder.zip $DATA_DIR/object_folder.zip
+  unzip -o -q $DATA_DIR/object_folder.zip -d $DATA_DIR
+  rm $DATA_DIR/object_folder.zip
+
+  AWS_PROFILE=$S3_PROFILE aws s3 cp $S3_DATASET_URI/object_terrain_folder.zip $DATA_DIR/object_terrain_folder.zip
+  unzip -o -q $DATA_DIR/object_terrain_folder.zip -d $DATA_DIR
+  rm $DATA_DIR/object_terrain_folder.zip
+
+  AWS_PROFILE=$S3_PROFILE aws s3 cp $S3_DATASET_URI/terrain_folder.zip $DATA_DIR/terrain_folder.zip
+  unzip -o -q $DATA_DIR/terrain_folder.zip -d $DATA_DIR
+  rm $DATA_DIR/terrain_folder.zip
 
   touch $SENTINEL_FILE
 fi

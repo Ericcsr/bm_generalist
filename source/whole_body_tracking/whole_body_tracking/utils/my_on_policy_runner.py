@@ -42,5 +42,5 @@ class MotionOnPolicyRunner(OnPolicyRunner):
 
             # link the artifact registry to this run
             if self.registry_name is not None:
-                wandb.run.use_artifact(self.registry_name)
+                # wandb.run.use_artifact(self.registry_name)
                 self.registry_name = None

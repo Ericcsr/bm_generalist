@@ -77,8 +77,12 @@ class MultiMotionLoader:
         contact_label_num_dims: int = 4,
     ):
         assert os.path.isfile(motion_files[0]), f"Invalid file path: {motion_files[0]}"
+        def _load_npz(path):
+            with np.load(path) as _f:
+                return {k: _f[k] for k in _f.files}
+
         try:
-            datas = [np.load(motion_file) for motion_file in motion_files]
+            datas = [_load_npz(motion_file) for motion_file in motion_files]
         except Exception:
             raise
         num_frames_per_motion = [data["joint_pos"].shape[0] for data in datas]

@@ -88,6 +88,7 @@ class _OnnxGeneralistPolicyExporter(_OnnxPolicyExporter):
 
     def export(self, path, filename):
         self.to("cpu")
+        self.eval()
         obs = torch.zeros(1, self.actor[0].in_features)
         time_step = torch.zeros(1, 1)
         torch.onnx.export(

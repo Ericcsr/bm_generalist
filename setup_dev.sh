@@ -11,8 +11,19 @@ cd IsaacLab
 git checkout v2.2.0
 sudo apt install cmake build-essential
 ./isaaclab.sh -i
-cd ../bm_generalist
+cd ../far_scenebot_training
 curl -L -o unitree_description.tar.gz https://storage.googleapis.com/qiayuanl_robot_descriptions/unitree_description.tar.gz
 tar -xzf unitree_description.tar.gz -C source/whole_body_tracking/whole_body_tracking/assets/
 rm unitree_description.tar.gz
 pip install -e source/whole_body_tracking
+mkdir -p data
+cd data
+aws s3 cp s3://far-research-internal/sihengz/datasets/motion_dir.zip .
+aws s3 cp s3://far-research-internal/sihengz/datasets/object_folder.zip .
+aws s3 cp s3://far-research-internal/sihengz/datasets/terrain_folder.zip .
+aws s3 cp s3://far-research-internal/sihengz/datasets/object_terrain_folder.zip .
+unzip motion_dir.zip
+unzip object_folder.zip
+unzip terrain_folder.zip
+unzip object_terrain_folder.zip
+cd ..

@@ -76,28 +76,40 @@ if [[ ! -f $SENTINEL_FILE ]]; then
 
   # Download and unpack datasets from S3 into data/
   # Uploaded via, e.g.: aws s3 cp motion_dir.zip s3://far-research-internal/sihengz/datasets
-  # far-asimov (default) profile is denied on this bucket; far-compute has read access.
+  # Credentials: on EKS the pod's service-account role (IRSA) is picked up by the
+  # default credential chain, so NO named profile is needed. Only set S3_PROFILE
+  # when running somewhere that needs an explicit profile (e.g. a laptop where
+  # 'far-compute' has read access; the default 'far-asimov' is denied on this bucket).
   S3_DATASET_URI="s3://far-research-internal/sihengz/datasets"
-  S3_PROFILE="${S3_PROFILE:-far-compute}"
+  S3_PROFILE="${S3_PROFILE:-}"
   DATA_DIR=$SCRIPT_DIR/data
   mkdir -p $DATA_DIR
 
+  # Build the optional --profile flag. If S3_PROFILE is set but the profile
+  # doesn't exist, fail loudly instead of after a slow full reinstall.
+  AWS_PROFILE_ARGS=()
+  if [[ -n "$S3_PROFILE" ]]; then
+    if ! aws configure list-profiles 2>/dev/null | grep -qx "$S3_PROFILE"; then
+      echo "[setup] S3_PROFILE='$S3_PROFILE' not found in AWS config; " \
+           "unset it to use the default credential chain (IRSA on EKS)." >&2
+      exit 1
+    fi
+    AWS_PROFILE_ARGS=(--profile "$S3_PROFILE")
+  fi
+
+  # Fetch + unpack one dataset zip. Args: <zip-name>
+  fetch_dataset() {
+    local name="$1"
+    aws "${AWS_PROFILE_ARGS[@]}" s3 cp "$S3_DATASET_URI/$name" "$DATA_DIR/$name"
+    unzip -o -q "$DATA_DIR/$name" -d "$DATA_DIR"
+    rm "$DATA_DIR/$name"
+  }
+
   cd $SCRIPT_DIR
-  AWS_PROFILE=$S3_PROFILE aws s3 cp $S3_DATASET_URI/motion_dir.zip $DATA_DIR/motion_dir.zip
-  unzip -o -q $DATA_DIR/motion_dir.zip -d $DATA_DIR
-  rm $DATA_DIR/motion_dir.zip
-
-  AWS_PROFILE=$S3_PROFILE aws s3 cp $S3_DATASET_URI/object_folder.zip $DATA_DIR/object_folder.zip
-  unzip -o -q $DATA_DIR/object_folder.zip -d $DATA_DIR
-  rm $DATA_DIR/object_folder.zip
-
-  AWS_PROFILE=$S3_PROFILE aws s3 cp $S3_DATASET_URI/object_terrain_folder.zip $DATA_DIR/object_terrain_folder.zip
-  unzip -o -q $DATA_DIR/object_terrain_folder.zip -d $DATA_DIR
-  rm $DATA_DIR/object_terrain_folder.zip
-
-  AWS_PROFILE=$S3_PROFILE aws s3 cp $S3_DATASET_URI/terrain_folder.zip $DATA_DIR/terrain_folder.zip
-  unzip -o -q $DATA_DIR/terrain_folder.zip -d $DATA_DIR
-  rm $DATA_DIR/terrain_folder.zip
+  fetch_dataset motion_dir.zip
+  fetch_dataset object_folder.zip
+  fetch_dataset object_terrain_folder.zip
+  fetch_dataset terrain_folder.zip
 
   touch $SENTINEL_FILE
 fi

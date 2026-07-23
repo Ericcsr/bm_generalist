@@ -1,4 +1,12 @@
-conda create -n bm python=3.10.18
+#!/bin/bash
+set -exo pipefail
+
+# Auto-accept licenses / avoid interactive prompts (critical for detached/non-TTY runs).
+export OMNI_KIT_ACCEPT_EULA=YES      # NVIDIA Omniverse / Isaac Sim EULA
+export OMNI_KIT_ALLOW_ROOT=1         # running as root
+export DEBIAN_FRONTEND=noninteractive  # apt won't prompt
+
+conda create -y -n bm python=3.10.18
 conda activate bm
 pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu121
 pip install --upgrade pip
@@ -9,7 +17,7 @@ pip install setuptools==65
 git clone https://github.com/isaac-sim/IsaacLab.git
 cd IsaacLab
 git checkout v2.2.0
-sudo apt install cmake build-essential
+apt-get install -y cmake build-essential
 ./isaaclab.sh -i
 cd ../far_scenebot_training
 curl -L -o unitree_description.tar.gz https://storage.googleapis.com/qiayuanl_robot_descriptions/unitree_description.tar.gz

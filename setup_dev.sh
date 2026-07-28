@@ -1,10 +1,5 @@
 #!/bin/bash
-set -exo pipefail
-
-# Auto-accept licenses / avoid interactive prompts (critical for detached/non-TTY runs).
-export OMNI_KIT_ACCEPT_EULA=YES      # NVIDIA Omniverse / Isaac Sim EULA
-export OMNI_KIT_ALLOW_ROOT=1         # running as root
-export DEBIAN_FRONTEND=noninteractive  # apt won't prompt
+set -ex
 
 conda create -y -n bm python=3.10.18
 conda activate bm
@@ -18,7 +13,7 @@ git clone https://github.com/isaac-sim/IsaacLab.git
 cd IsaacLab
 git checkout v2.2.0
 apt-get install -y cmake build-essential
-./isaaclab.sh -i
+./isaaclab.sh --install
 cd ../far_scenebot_training
 curl -L -o unitree_description.tar.gz https://storage.googleapis.com/qiayuanl_robot_descriptions/unitree_description.tar.gz
 tar -xzf unitree_description.tar.gz -C source/whole_body_tracking/whole_body_tracking/assets/

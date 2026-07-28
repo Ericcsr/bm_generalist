@@ -15,9 +15,9 @@ git checkout v2.2.0
 apt-get install -y cmake build-essential
 ./isaaclab.sh --install
 cd ../far_scenebot_training
-curl -L -o unitree_description.tar.gz https://storage.googleapis.com/qiayuanl_robot_descriptions/unitree_description.tar.gz
-tar -xzf unitree_description.tar.gz -C source/whole_body_tracking/whole_body_tracking/assets/
-rm unitree_description.tar.gz
+# curl -L -o unitree_description.tar.gz https://storage.googleapis.com/qiayuanl_robot_descriptions/unitree_description.tar.gz
+# tar -xzf unitree_description.tar.gz -C source/whole_body_tracking/whole_body_tracking/assets/
+# rm unitree_description.tar.gz
 pip install -e source/whole_body_tracking
 mkdir -p data
 cd data

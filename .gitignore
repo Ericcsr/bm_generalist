@@ -41,7 +41,6 @@ _build
 *.npz
 *.out
 
-**/assets/
 artifacts/
 contact_sequences/
 lafan_terrain/

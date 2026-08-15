@@ -216,9 +216,10 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         print(f"[INFO]: Loading model checkpoint from: {run_path}/{file}")
         resume_path = f"./logs/rsl_rl/temp/{file}"
 
-        if args_cli.motion_file is not None:
-            print(f"[INFO]: Using motion file from CLI: {args_cli.motion_file}")
-            env_cfg.commands.motion.motion_file = args_cli.motion_file
+        motion_file = getattr(args_cli, "motion_file", None)
+        if motion_file is not None:
+            print(f"[INFO]: Using motion file from CLI: {motion_file}")
+            env_cfg.commands.motion.motion_file = motion_file
 
         art = next((a for a in wandb_run.used_artifacts() if a.type == "motions"), None)
         if art is None:
@@ -254,6 +255,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             if env_cfg.physics_phase_flag:
                 print("[INFO]: physics_phase enabled: magic force turns off when both wrists contact object")
         # Contact-based collision is only in Tracking-3pt-Binded-Multi-Terrain-Contact-Collision-G1-v0
+
+        if args_cli.num_envs is not None and hasattr(env_cfg, "num_envs"):
+            env_cfg.num_envs = args_cli.num_envs
         env_cfg.setup_motion_terrain_pairs()
         # Log object trajectory load for multi-object / combined task debugging
         if hasattr(env_cfg, "object_folder_path") and env_cfg.object_folder_path:

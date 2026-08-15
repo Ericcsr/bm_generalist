@@ -444,6 +444,22 @@ class OnnxPolicy(nn.Module):
         return self.actor(self.normalizer(obs))
 
 
+def _inline_external_data(onnx_path: Path) -> None:
+    """Rewrite the ONNX as a single self-contained file (weights inline, no .onnx.data sidecar).
+
+    The dynamo-based ``torch.onnx.export`` in this torch version writes weights as external data by
+    default, producing a ``<name>.onnx.data`` sidecar. Some deploy runtimes expect a single file, so
+    re-load with the external data pulled into memory and re-save without external data.
+    """
+    import onnx
+
+    model = onnx.load(onnx_path, load_external_data=True)
+    onnx.save(model, onnx_path, save_as_external_data=False)
+    sidecar = onnx_path.with_name(onnx_path.name + ".data")
+    if sidecar.exists():
+        sidecar.unlink()
+
+
 def export_checkpoint(
     checkpoint_path: Path,
     output_path: Path,
@@ -452,6 +468,7 @@ def export_checkpoint(
     normalizer_eps: float,
     metadata: dict[str, Any],
     verbose: bool,
+    inline_weights: bool = True,
 ) -> None:
     checkpoint = _load_checkpoint(checkpoint_path)
     actor = _build_actor(_model_state_dict(checkpoint), activation)
@@ -477,17 +494,35 @@ def export_checkpoint(
         dynamic_axes={},
     )
 
+    # Attach metadata first (operates on the external-data model), then optionally collapse to one file.
     _attach_onnx_metadata(output_path, metadata)
+    if inline_weights:
+        _inline_external_data(output_path)
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("run_dir", type=Path, help="Run directory containing model_*.pt checkpoints.")
+    parser.add_argument(
+        "run_dir",
+        type=Path,
+        nargs="?",
+        default=None,
+        help="Run directory containing model_*.pt checkpoints. Omit when using --wandb-path.",
+    )
+    parser.add_argument(
+        "--wandb-path",
+        default=None,
+        help=(
+            "W&B run path to download from instead of a local run_dir: 'org/project/run_id' (downloads the "
+            "latest model_*.pt) or 'org/project/run_id/model_N.pt' (that exact checkpoint). Downloads to "
+            "./logs/rsl_rl/temp. Also fills the metadata run_path if --run-path is not given."
+        ),
+    )
     parser.add_argument(
         "--output-dir",
         type=Path,
         default=None,
-        help="Directory for ONNX files. Defaults to <run_dir>/exported_onnx.",
+        help="Directory for ONNX files. Defaults to <run_dir>/exported_onnx (or ./logs/rsl_rl/temp/exported_onnx with --wandb-path).",
     )
     parser.add_argument("--pattern", default="model_*.pt", help="Checkpoint glob pattern inside run_dir.")
     parser.add_argument("--activation", choices=sorted(ACTIVATIONS), default="elu", help="Actor hidden activation.")
@@ -524,17 +559,57 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--anchor-body-name", default=None, help="Metadata anchor_body_name.")
     parser.add_argument("--body-names", default=None, help="Comma-separated metadata body_names.")
     parser.add_argument("--verbose", action="store_true", help="Print verbose ONNX exporter output.")
+    parser.add_argument(
+        "--external-data",
+        action="store_true",
+        help="Keep weights in a separate <name>.onnx.data sidecar. Default: inline into a single .onnx file.",
+    )
     return parser.parse_args()
+
+
+def _download_from_wandb(wandb_path: str) -> Path:
+    """Download a checkpoint from a W&B run path (same semantics as play.py) and return its local path."""
+    import wandb
+
+    run_path = wandb_path
+    api = wandb.Api()
+    if "model" in wandb_path:
+        run_path = "/".join(wandb_path.split("/")[:-1])
+    wandb_run = api.run(run_path)
+    files = [f.name for f in wandb_run.files() if "model" in f.name]
+    if "model" in wandb_path:
+        file = wandb_path.split("/")[-1]
+    else:
+        if not files:
+            raise FileNotFoundError(f"No model_*.pt files found in W&B run {run_path}")
+        file = max(files, key=lambda x: int(x.split("_")[1].split(".")[0]))
+    dest_dir = Path("./logs/rsl_rl/temp")
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    wandb_run.file(str(file)).download(str(dest_dir), replace=True)
+    local = dest_dir / str(file)
+    print(f"[INFO] Downloaded checkpoint from W&B: {run_path}/{file} -> {local}")
+    return local
 
 
 def main() -> None:
     args = parse_args()
-    run_dir = args.run_dir.expanduser().resolve()
-    output_dir = (args.output_dir or run_dir / "exported_onnx").expanduser().resolve()
-    metadata = _metadata_from_args(args)
-    checkpoints = sorted(run_dir.glob(args.pattern), key=_checkpoint_sort_key)
-    if not checkpoints:
-        raise FileNotFoundError(f"No checkpoints matching {args.pattern!r} found in {run_dir}.")
+
+    if args.wandb_path:
+        checkpoint_path = _download_from_wandb(args.wandb_path).expanduser().resolve()
+        if args.run_path is None:
+            args.run_path = args.wandb_path
+        output_dir = (args.output_dir or checkpoint_path.parent / "exported_onnx").expanduser().resolve()
+        metadata = _metadata_from_args(args)
+        checkpoints = [checkpoint_path]
+    else:
+        if args.run_dir is None:
+            raise SystemExit("Provide a run_dir or --wandb-path <org/project/run_id[/model_N.pt]>.")
+        run_dir = args.run_dir.expanduser().resolve()
+        output_dir = (args.output_dir or run_dir / "exported_onnx").expanduser().resolve()
+        metadata = _metadata_from_args(args)
+        checkpoints = sorted(run_dir.glob(args.pattern), key=_checkpoint_sort_key)
+        if not checkpoints:
+            raise FileNotFoundError(f"No checkpoints matching {args.pattern!r} found in {run_dir}.")
 
     for checkpoint_path in checkpoints:
         output_path = output_dir / f"{checkpoint_path.stem}.onnx"
@@ -546,6 +621,7 @@ def main() -> None:
             normalizer_eps=args.normalizer_eps,
             metadata=metadata,
             verbose=args.verbose,
+            inline_weights=not args.external_data,
         )
         print(f"[OK] {checkpoint_path.name} -> {output_path}")
 

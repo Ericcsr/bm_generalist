@@ -91,7 +91,7 @@ class MultiMotionLoader:
         self.motion_end_idx = torch.tensor(num_frames_per_motion, dtype=torch.long, device=device).cumsum(dim=0)
 
         self.num_motions = len(datas)
-        self.fps = datas[0]["fps"]  # Assume all motion have same fps
+        self.fps = next((d["fps"] for d in datas if "fps" in d), 50)
         self.joint_pos = torch.tensor(np.concatenate([data["joint_pos"] for data in datas], axis=0), dtype=torch.float32, device=device)
         self.joint_vel = torch.tensor(np.concatenate([data["joint_vel"] for data in datas], axis=0), dtype=torch.float32, device=device)
         self._body_pos_w = torch.tensor(np.concatenate([data["body_pos_w"] for data in datas], axis=0), dtype=torch.float32, device=device)

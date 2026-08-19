@@ -55,8 +55,9 @@ parser.add_argument("--loop", action="store_true", help="Loop the motion (intera
 # Video / recording options
 parser.add_argument("--record", action="store_true", help="Render a follow-camera video for one motion, then exit.")
 parser.add_argument("--out_dir", type=str, default="videos", help="Output directory for videos.")
-parser.add_argument("--width", type=int, default=1280, help="Video width in pixels.")
-parser.add_argument("--height", type=int, default=720, help="Video height in pixels.")
+parser.add_argument("--width", type=int, default=640, help="Video width in pixels (lower = faster; try 640).")
+parser.add_argument("--height", type=int, default=360, help="Video height in pixels (lower = faster; try 360).")
+parser.add_argument("--frame_step", type=int, default=2, help="Render every Nth motion frame (2 ~= 2x faster); output fps is scaled so playback speed is unchanged.")
 parser.add_argument("--cam_offset", type=float, nargs=3, default=[2.5, 2.5, 1.5], help="Follow-camera offset from robot root (x y z).")
 parser.add_argument("--overwrite", action="store_true", help="Re-render even if the output video already exists.")
 parser.add_argument("--limit", type=int, default=None, help="Batch mode: process at most this many files.")
@@ -91,7 +92,12 @@ simulation_app = app_launcher.app
 """Rest follows."""
 
 import gc
+import os
 import re
+import time
+
+# Set REPLAY_TIMING=1 to print per-stage wall-clock (setup breakdown vs render).
+_TIMING = bool(os.environ.get("REPLAY_TIMING"))
 
 import numpy as np
 import torch
@@ -291,13 +297,21 @@ def _build_sim_scene(motion: dict, proxy_urdf: str | None, terrain_urdf: str | N
     tied to the motion fps.
     """
     # Drop the previous SimulationContext singleton and clear the stage before rebuilding.
+    t0 = time.perf_counter()
     SimulationContext.clear_instance()
     create_new_stage()
+    t1 = time.perf_counter()
 
     sim = SimulationContext(sim_utils.SimulationCfg(dt=1.0 / motion["fps"], device=args_cli.device))
+    t2 = time.perf_counter()
     scene_cfg = _build_scene_cfg(proxy_urdf, terrain_urdf, record=record)
     scene = InteractiveScene(scene_cfg)
+    t3 = time.perf_counter()
     sim.reset()
+    t4 = time.perf_counter()
+    if _TIMING:
+        print(f"[TIME] clear+new_stage={t1-t0:.2f}s  new_SimCtx={t2-t1:.2f}s  "
+              f"scene_spawn(URDF)={t3-t2:.2f}s  sim.reset={t4-t3:.2f}s")
     return sim, scene
 
 
@@ -368,15 +382,21 @@ def _record_one(motion_path: Path, out_dir: Path) -> Path | None:
     apply_frame, camera, num_frames = _make_apply_frame(sim, scene, motion, obj_traj, record=True)
     sim_dt = sim.get_physics_dt()
 
+    # Render every Nth frame; scale output fps by the same factor so playback speed is unchanged.
+    step = max(1, args_cli.frame_step)
+    out_fps = float(motion["fps"]) / step
+
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / f"{motion_path.stem}.mp4"
     writer = cv2.VideoWriter(
         str(out_path), cv2.VideoWriter_fourcc(*"mp4v"),
-        float(motion["fps"]), (args_cli.width, args_cli.height),
+        out_fps, (args_cli.width, args_cli.height),
     )
     if not writer.isOpened():
         raise RuntimeError(f"cv2.VideoWriter failed to open {out_path}")
 
+    n_written = 0
+    tw0 = time.perf_counter()
     try:
         # Warm up: place at frame 0 and render a few steps so the camera buffer is valid.
         apply_frame(0)
@@ -384,8 +404,9 @@ def _record_one(motion_path: Path, out_dir: Path) -> Path | None:
         for _ in range(3):
             sim.step()
             scene.update(sim_dt)
+        tw1 = time.perf_counter()
 
-        for f in range(num_frames):
+        for f in range(0, num_frames, step):
             apply_frame(f)
             scene.write_data_to_sim()
             sim.step()
@@ -394,10 +415,15 @@ def _record_one(motion_path: Path, out_dir: Path) -> Path | None:
             rgb = camera.data.output["rgb"][0, ..., :3]        # (H, W, 3) uint8
             frame_bgr = cv2.cvtColor(rgb.cpu().numpy(), cv2.COLOR_RGB2BGR)
             writer.write(frame_bgr)
+            n_written += 1
     finally:
         writer.release()
 
-    print(f"[INFO] wrote {num_frames} frames -> {out_path.resolve()}")
+    if _TIMING:
+        tw2 = time.perf_counter()
+        print(f"[TIME] warmup={tw1-tw0:.2f}s  render({n_written}f)={tw2-tw1:.2f}s "
+              f"({n_written/max(tw2-tw1,1e-6):.1f}fps)")
+    print(f"[INFO] wrote {n_written}/{num_frames} frames @ {out_fps:.1f}fps -> {out_path.resolve()}")
     return out_path
 
 
@@ -501,7 +527,11 @@ if __name__ == "__main__":
         # Every video is flushed to disk per-file (cv2 writer.release in _record_one).
         # simulation_app.close() reliably hangs on this Isaac Sim build, which would
         # block automation after the whole batch is already done, so hard-exit instead.
-        import os
+        # os._exit skips atexit/buffer flushing, so flush stdout/stderr first or the
+        # batch progress log (block-buffered when redirected to a file) is lost.
+        import sys
+        sys.stdout.flush()
+        sys.stderr.flush()
         os._exit(rc)
     simulation_app.close()
     if rc:

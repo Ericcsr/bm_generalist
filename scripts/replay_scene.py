@@ -40,15 +40,23 @@ Three modes:
 
 import argparse
 import glob as _glob
+import sys
 from pathlib import Path
 
 from isaaclab.app import AppLauncher
 
+# Reuse the exact category rules from motion_stats.py (same dir on sys.path[0]).
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from motion_stats import NAME_KEYS, classify  # noqa: E402
+
 parser = argparse.ArgumentParser(description="Replay motion + object + terrain scene, with video export.")
 parser.add_argument("--motion_file", type=str, default=None, help="Path to a single motion .npz file.")
 parser.add_argument("--batch", type=str, default=None, help="Directory or glob of motion .npz files -> one video each (single Isaac process, fresh stage per file).")
+parser.add_argument("--category", type=str, nargs="+", default=["all"], choices=sorted(NAME_KEYS),
+                    help="Batch: only render motions in these categories (only|object|terrain|object_terrain|all).")
 parser.add_argument("--object_folder", type=str, default=None, help="Object folder (default: <data_root>/object_folder).")
 parser.add_argument("--terrain_folder", type=str, default=None, help="Terrain folder (default: <data_root>/terrain_folder).")
+parser.add_argument("--object_terrain_folder", type=str, default=None, help="Combined object+terrain folder, scanned recursively (default: <data_root>/object_terrain_folder).")
 parser.add_argument("--no_object", action="store_true", help="Do not load the object even if found.")
 parser.add_argument("--no_terrain", action="store_true", help="Do not load the terrain even if found.")
 parser.add_argument("--loop", action="store_true", help="Loop the motion (interactive mode only).")
@@ -173,21 +181,37 @@ def _load_motion(npz_path: Path) -> dict:
     }
 
 
-def _find_object(object_folder: Path, stem: str):
+def _find_file(folders_rec: list, name: str):
+    """Find an exact filename across (folder, recursive) pairs; object_terrain_folder is recursive."""
+    for folder, rec in folders_rec:
+        if not folder.is_dir():
+            continue
+        if rec:
+            hit = next(folder.rglob(name), None)
+            if hit is not None:
+                return hit
+        else:
+            p = folder / name
+            if p.exists():
+                return p
+    return None
+
+
+def _find_object(folders_rec: list, stem: str):
     """Return (proxy_urdf_path, fitted_npz_path) if both exist, else None."""
-    urdf = object_folder / f"{stem}_thin_plate_proxy.urdf"
-    fitted = object_folder / f"{stem}_object_fitted.npz"
-    if urdf.exists() and fitted.exists():
+    urdf = _find_file(folders_rec, f"{stem}_thin_plate_proxy.urdf")
+    fitted = _find_file(folders_rec, f"{stem}_object_fitted.npz")
+    if urdf is not None and fitted is not None:
         return str(urdf.resolve()), fitted
     return None
 
 
-def _find_terrain(terrain_folder: Path, stem: str):
+def _find_terrain(folders_rec: list, stem: str):
     """Terrain base = motion stem with trailing _motion_<N> stripped."""
     base = re.sub(r"_motion_\d+$", "", stem)
     for cand_base in (stem, base):
-        urdf = terrain_folder / f"{cand_base}_terrain.urdf"
-        if urdf.exists():
+        urdf = _find_file(folders_rec, f"{cand_base}_terrain.urdf")
+        if urdf is not None:
             return str(urdf.resolve())
     return None
 
@@ -200,27 +224,33 @@ def _load_object_traj(fitted_npz: Path) -> dict:
 
 
 def _resolve_folders(motion_path: Path):
-    """Object / terrain folders: CLI overrides, else <data_root>/{object,terrain}_folder."""
+    """Object / terrain / object_terrain folders: CLI overrides, else <data_root>/*."""
     data_root = motion_path.resolve().parent.parent  # data/motion_dir/x.npz -> data/
     object_folder = _resolve(Path(args_cli.object_folder)) if args_cli.object_folder else data_root / "object_folder"
     terrain_folder = _resolve(Path(args_cli.terrain_folder)) if args_cli.terrain_folder else data_root / "terrain_folder"
-    return object_folder, terrain_folder
+    ot_folder = _resolve(Path(args_cli.object_terrain_folder)) if args_cli.object_terrain_folder else data_root / "object_terrain_folder"
+    return object_folder, terrain_folder, ot_folder
 
 
 def _discover_assets(motion_path: Path):
-    """Return (proxy_urdf, fitted_npz, terrain_urdf) for a motion, honoring --no_object/--no_terrain."""
-    object_folder, terrain_folder = _resolve_folders(motion_path)
+    """Return (proxy_urdf, fitted_npz, terrain_urdf) for a motion, honoring --no_object/--no_terrain.
+
+    object_terrain_folder is searched recursively (combined assets live in subdirs like bones_box/).
+    """
+    object_folder, terrain_folder, ot_folder = _resolve_folders(motion_path)
     stem = motion_path.stem
+    obj_dirs = [(object_folder, False), (ot_folder, True)]
+    ter_dirs = [(terrain_folder, False), (ot_folder, True)]
 
     proxy_urdf, fitted_npz = None, None
-    if not args_cli.no_object and object_folder.exists():
-        found = _find_object(object_folder, stem)
+    if not args_cli.no_object:
+        found = _find_object(obj_dirs, stem)
         if found:
             proxy_urdf, fitted_npz = found
 
     terrain_urdf = None
-    if not args_cli.no_terrain and terrain_folder.exists():
-        terrain_urdf = _find_terrain(terrain_folder, stem)
+    if not args_cli.no_terrain:
+        terrain_urdf = _find_terrain(ter_dirs, stem)
 
     return proxy_urdf, fitted_npz, terrain_urdf
 
@@ -465,6 +495,16 @@ def _run_batch():
     files = _enumerate_motions(args_cli.batch)
     if not files:
         raise FileNotFoundError(f"No .npz motion files matched --batch {args_cli.batch!r}")
+
+    # Category filter (uses the same rules as motion_stats.py). "all" -> no filter.
+    if "all" not in args_cli.category:
+        wanted = {NAME_KEYS[k] for k in args_cli.category}
+        object_folder, terrain_folder, ot_folder = _resolve_folders(files[0])
+        records = classify(files[0].resolve().parent, object_folder, terrain_folder, ot_folder)
+        before = len(files)
+        files = [f for f in files if records.get(f.stem, {}).get("cat") in wanted]
+        print(f"[BATCH] category filter {sorted(wanted)}: {len(files)}/{before} motion(s) kept")
+
     if args_cli.limit is not None:
         files = files[: args_cli.limit]
 

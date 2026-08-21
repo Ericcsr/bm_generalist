@@ -554,9 +554,10 @@ class EventCfg:
         func=mdp.randomize_rigid_body_mass,
         mode="reset",
         params={
-            # left_rubber_hand / right_rubber_hand, nominal mass 0.170 kg each in main_rccu.urdf
-            "asset_cfg": SceneEntityCfg("robot", body_names=".*_rubber_hand"),
-            "mass_distribution_params": (0.1, 0.5),
+            # rubber_hand is merged (fixed joint) into *_wrist_yaw_link at load time;
+            # merged nominal mass ~0.25 kg each (0.0846 wrist_yaw + 0.170 rubber_hand)
+            "asset_cfg": SceneEntityCfg("robot", body_names=".*wrist_yaw.*"),
+            "mass_distribution_params": (0.2, 0.6),
             "operation": "abs",
             "distribution": "uniform",
             "recompute_inertia": True,

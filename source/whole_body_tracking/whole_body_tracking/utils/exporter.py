@@ -55,6 +55,7 @@ class _OnnxMotionPolicyExporter(_OnnxPolicyExporter):
 
     def export(self, path, filename):
         self.to("cpu")
+        self.eval()
         obs = torch.zeros(1, self.actor[0].in_features)
         time_step = torch.zeros(1, 1)
         torch.onnx.export(
@@ -75,6 +76,7 @@ class _OnnxMotionPolicyExporter(_OnnxPolicyExporter):
                 "body_ang_vel_w",
             ],
             dynamic_axes={},
+            dynamo=False,
         )
 
 class _OnnxGeneralistPolicyExporter(_OnnxPolicyExporter):
@@ -88,6 +90,7 @@ class _OnnxGeneralistPolicyExporter(_OnnxPolicyExporter):
 
     def export(self, path, filename):
         self.to("cpu")
+        self.eval()
         obs = torch.zeros(1, self.actor[0].in_features)
         time_step = torch.zeros(1, 1)
         torch.onnx.export(
@@ -102,6 +105,7 @@ class _OnnxGeneralistPolicyExporter(_OnnxPolicyExporter):
                 "actions"
             ],
             dynamic_axes={},
+            dynamo=False,
         )
 
 def list_to_csv_str(arr, *, decimals: int = 3, delimiter: str = ",") -> str:

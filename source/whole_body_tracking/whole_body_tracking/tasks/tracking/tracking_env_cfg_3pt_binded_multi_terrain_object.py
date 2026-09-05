@@ -910,6 +910,10 @@ class Tracking3ptBindedMultiTerrainObjectEnvCfg(ManagerBasedRLEnvCfg):
     motion_category_per_motion: list[int] = field(default_factory=list)
     num_envs: int = 4096
     physics_phase_flag: bool = False
+    #: When True, the proxy object is never driven by magic force / kinematic updates:
+    #: it is placed at its reference initial pose on reset and then evolves purely
+    #: under physics. Overrides :attr:`physics_phase_flag`.
+    object_free_physics_flag: bool = False
     env_spacing: float = 10.0
 
     scene: InteractiveSceneCfg = MISSING

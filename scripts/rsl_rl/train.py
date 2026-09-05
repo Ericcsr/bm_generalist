@@ -66,6 +66,20 @@ parser.add_argument(
     default=False,
     help="When enabled, magic force disappears the first time both wrists make contact with object; object then fully controlled by robot.",
 )
+parser.add_argument(
+    "--object_free_physics",
+    action="store_true",
+    default=False,
+    help="Disable magic force and kinematic driving entirely: object is placed at its reference initial pose "
+    "on reset and then evolves purely under physics. Overrides --physics_phase.",
+)
+parser.add_argument(
+    "--robot",
+    type=str,
+    default="default",
+    help="G1 robot model to train with. 'default' = bare G1 (main.urdf); "
+    "'rccu_camera' = G1 + RCCU + PLA backpack + ZED X camera. See G1_ROBOT_CFGS in robots/g1.py.",
+)
 
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
@@ -166,6 +180,13 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             env_cfg.object_terrain_folder_path = getattr(args_cli, "object_terrain_folder", None) or ""
         if hasattr(env_cfg, "physics_phase_flag"):
             env_cfg.physics_phase_flag = getattr(args_cli, "physics_phase", False)
+        if hasattr(env_cfg, "object_free_physics_flag"):
+            env_cfg.object_free_physics_flag = getattr(args_cli, "object_free_physics", False)
+            if env_cfg.object_free_physics_flag:
+                print(
+                    "[INFO]: object_free_physics enabled: no magic force / kinematic driving; "
+                    "object initialized at reference pose on reset, then purely physical"
+                )
         contact_label_debug_vis = getattr(args_cli, "contact_label_debug_vis", False)
         # Contact-based collision is only in Tracking-3pt-Binded-Multi-Terrain-Contact-Collision-G1-v0
         env_cfg.setup_motion_terrain_pairs()
@@ -184,6 +205,22 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         if not motion_files:
             motion_files = [args_cli.motion_dir + "/" + x for x in os.listdir(args_cli.motion_dir)]
         env_cfg.commands.motion.motion_files = motion_files
+
+    # optionally swap the G1 robot model (applied last so it overrides any cfg default)
+    from whole_body_tracking.robots.g1 import G1_ROBOT_CFGS
+
+    robot_key = getattr(args_cli, "robot", "default")
+    if robot_key != "default":
+        if robot_key not in G1_ROBOT_CFGS:
+            raise ValueError(f"Unknown --robot '{robot_key}'. Choices: {sorted(G1_ROBOT_CFGS)}")
+        robot_cfg = getattr(getattr(env_cfg.scene, "robot", None), "prim_path", None)
+        prim_path = robot_cfg if robot_cfg is not None else "{ENV_REGEX_NS}/Robot"
+        env_cfg.scene.robot = G1_ROBOT_CFGS[robot_key].replace(prim_path=prim_path)
+        print(
+            f"[INFO]: Using G1 robot model '{robot_key}' "
+            f"({G1_ROBOT_CFGS[robot_key].spawn.asset_path})",
+            flush=True,
+        )
 
     # specify directory for logging experiments
     log_root_path = os.path.join("logs", "rsl_rl", agent_cfg.experiment_name)

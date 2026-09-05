@@ -1255,6 +1255,11 @@ def update_magic_force_object_poses(
     When physics_phase=True: first time both wrists make contact with object,
     magic force is disabled for that env and object is fully controlled by robot.
 
+    When ``env.cfg.object_free_physics_flag`` is True this function is a no-op:
+    the object is never driven by magic force or kinematic updates. It is only
+    placed at its reference initial pose on reset (``reset_object_poses_direct``)
+    and then evolves purely under physics. Overrides ``physics_phase``.
+
     When use_pose_velocity_control=True: bypass apply_forces_and_torques (avoids
     cudaErrorIllegalAddress with replicate_physics=False + MultiAssetSpawner).
     Uses direct pose/velocity setting instead; slightly different dynamics.
@@ -1273,6 +1278,11 @@ def update_magic_force_object_poses(
         use_pose_velocity_control: If True, use direct pose/velocity instead of forces
             (workaround for cudaErrorIllegalAddress with replicate_physics=False).
     """
+    # Free-physics mode: object is only initialized at its reference pose on reset;
+    # no magic force / kinematic driving during the episode.
+    if getattr(env.cfg, "object_free_physics_flag", False):
+        return
+
     data = _init_kinematic_object_data(env, command_name)
     if data is None or data["num_pairs"] == 0:
         return

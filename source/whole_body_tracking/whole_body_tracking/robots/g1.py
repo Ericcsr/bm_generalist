@@ -181,6 +181,23 @@ G1_CYLINDER_CFG = ArticulationCfg(
     },
 )
 
+# G1 + RCCU + PLA backpack + ZED X camera deployment variant. Same 29-DoF kinematics
+# and actuators as G1_CYLINDER_CFG; differs only in the torso_link inertial (backpack
+# mass/CoM/inertia merged in), an extra fixed backpack_link visual + box collision, and
+# the decimated backpack mesh. Hand collisions use the box shape (matches main.urdf).
+G1_RCCU_CAMERA_CFG = G1_CYLINDER_CFG.replace(
+    spawn=G1_CYLINDER_CFG.spawn.replace(
+        asset_path=f"{ASSET_DIR}/unitree_description/urdf/g1/g1_rccu_with_camera_pla.urdf",
+    )
+)
+
+# Registry of selectable G1 models for training/eval (see --robot flag in train.py).
+G1_ROBOT_CFGS = {
+    "default": G1_CYLINDER_CFG,
+    "rccu_camera": G1_RCCU_CAMERA_CFG,
+}
+
+
 G1_ACTION_SCALE = {}
 for a in G1_CYLINDER_CFG.actuators.values():
     e = a.effort_limit_sim

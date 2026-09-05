@@ -681,6 +681,10 @@ class Tracking3ptBindedMultiObjectEnvCfg(ManagerBasedRLEnvCfg):
     wrist_mismatch_strict_max_mismatch_steps: int = 20
     num_envs: int = 4096
     physics_phase_flag: bool = False
+    #: When True, the proxy object is never driven by magic force / kinematic updates:
+    #: it is placed at its reference initial pose on reset and then evolves purely
+    #: under physics. Overrides :attr:`physics_phase_flag`.
+    object_free_physics_flag: bool = False
     magic_force_use_pose_velocity_control: bool = True  # Avoid cudaErrorIllegalAddress with replicate_physics=False
 
     env_spacing: float = 10.0

@@ -812,6 +812,24 @@ class G1Flat3ptBindedMultiTerrainObjectUnilateralContact5Seat2BitComplianceEnvCf
 
 
 @configclass
+class G1Flat3ptBindedMultiTerrainObjectUnilateralContact5Seat2BitNoContactObsBaselineEnvCfg(
+    G1Flat3ptBindedMultiTerrainObjectUnilateralContact5Seat2BitEnvCfg
+):
+    """5-seat 2-bit baseline with contact labels removed from actor and critic observations.
+
+    Contact rewards, terminations, and curriculum are unchanged from
+    ``Unilateral-Contact-5Seat-2Bit``.
+
+    Register id: ``Tracking-3pt-Binded-Multi-Terrain-Object-Unilateral-Contact-5Seat-2Bit-NoContactObs-Baseline-G1-v0``.
+    """
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.observations.policy.contact_label = None
+        self.observations.critic.contact_label = None
+
+
+@configclass
 class G1Flat3ptBindedMultiTerrainObjectNoContactBaselineEnvCfg(
     G1Flat3ptBindedMultiTerrainObjectUnilateralContact5Seat2BitEnvCfg
 ):

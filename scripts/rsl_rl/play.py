@@ -112,6 +112,13 @@ parser.add_argument(
     help="When enabled, magic force disappears the first time both wrists make contact with object; object then fully controlled by robot.",
 )
 parser.add_argument(
+    "--object_free_physics",
+    action="store_true",
+    default=False,
+    help="Disable magic force and kinematic driving entirely: object is placed at its reference initial pose "
+    "on reset and then evolves purely under physics. Overrides --physics_phase.",
+)
+parser.add_argument(
     "--contact_vis",
     action="store_true",
     default=False,
@@ -253,6 +260,13 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             env_cfg.physics_phase_flag = getattr(args_cli, "physics_phase", False)
             if env_cfg.physics_phase_flag:
                 print("[INFO]: physics_phase enabled: magic force turns off when both wrists contact object")
+        if hasattr(env_cfg, "object_free_physics_flag"):
+            env_cfg.object_free_physics_flag = getattr(args_cli, "object_free_physics", False)
+            if env_cfg.object_free_physics_flag:
+                print(
+                    "[INFO]: object_free_physics enabled: no magic force / kinematic driving; "
+                    "object initialized at reference pose on reset, then purely physical"
+                )
         # Contact-based collision is only in Tracking-3pt-Binded-Multi-Terrain-Contact-Collision-G1-v0
         env_cfg.setup_motion_terrain_pairs()
         # Log object trajectory load for multi-object / combined task debugging

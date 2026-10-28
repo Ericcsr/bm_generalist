@@ -2,7 +2,7 @@
 # Fix 2026-10-27: replace the 30 fps contact labels of the LaFAN obstacles clips with symlinks to 50 fps copies
 # (label_fps_fixed/, built by fix_label_fps.py). Originals are copied to label_fps_orig/ first (sha-verified).
 set -euo pipefail
-cd ~/sky_workdir/bm_generalist
+cd "$(dirname "$(readlink -f "$0")")/.."   # repo root
 L=lafan_terrain/all_lafan_terrain_rf_bones_seat_stair
 D=datafix_20261027
 mkdir -p $D/label_fps_orig

@@ -1,7 +1,7 @@
 #!/bin/bash
 # Move bm_generalist's checkpoint tree (logs/rsl_rl/g1_flat) to the /data volume and leave a symlink in its place.
 set -euo pipefail
-cd ~/sky_workdir/bm_generalist
+cd "$(dirname "$(readlink -f "$0")")/.."   # repo root
 SRC=logs/rsl_rl/g1_flat
 DST=/data/bm_generalist_logs/rsl_rl/g1_flat
 [ -L "$SRC" ] && { echo "already a symlink: $(readlink $SRC)"; exit 0; }

@@ -2,7 +2,7 @@
 # Fix 1 (2026-10-22): parametric stair clips stored body arrays in MuJoCo body order; replace the 50 base-dir files with
 # symlinks to body-order-fixed copies. Originals are copied to param_body_order_orig/ first (sha-verified).
 set -euo pipefail
-cd ~/sky_workdir/bm_generalist
+cd "$(dirname "$(readlink -f "$0")")/.."   # repo root
 B=all_object_all_terrain_merged_bones_freespace_seat_stairs
 D=datafix_20261022
 mkdir -p $D/param_body_order_orig

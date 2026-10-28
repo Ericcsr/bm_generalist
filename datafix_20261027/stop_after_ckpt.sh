@@ -1,7 +1,7 @@
 #!/bin/bash
 # Wait until model_$1.pt is fully written in run dir $2, then SIGTERM the torchrun parent of the training.
 set -uo pipefail
-cd ~/sky_workdir/bm_generalist
+cd "$(dirname "$(readlink -f "$0")")/.."   # repo root
 CK=logs/rsl_rl/g1_flat/$2/model_$1.pt
 until [ -f "$CK" ]; do sleep 15; done
 s0=-1; s1=$(stat -c %s "$CK")

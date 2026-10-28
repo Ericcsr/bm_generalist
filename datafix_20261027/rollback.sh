@@ -1,7 +1,7 @@
 #!/bin/bash
 # Undo apply.sh: put the original 30 fps label files back.
 set -euo pipefail
-cd ~/sky_workdir/bm_generalist
+cd "$(dirname "$(readlink -f "$0")")/.."   # repo root
 L=lafan_terrain/all_lafan_terrain_rf_bones_seat_stair
 D=datafix_20261027
 n=0

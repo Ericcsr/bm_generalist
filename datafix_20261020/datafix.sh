@@ -2,7 +2,7 @@
 # Fix (1) csv_hand_object_terrain/bones_box invisible to the non-recursive scanners, and
 # (2) parametric stairs (hHHH_wWWW_sS) not paired with their terrain. Usage: datafix.sh [--apply]
 set -euo pipefail
-cd ~/sky_workdir/bm_generalist
+cd "$(dirname "$(readlink -f "$0")")/.."   # repo root
 APPLY=0; [ "${1:-}" = "--apply" ] && APPLY=1
 M=all_object_all_terrain_merged_bones_freespace_seat_stairs
 T=lafan_terrain/all_lafan_terrain_rf_bones_seat_stair

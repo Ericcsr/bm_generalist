@@ -181,6 +181,34 @@ G1_CYLINDER_CFG = ArticulationCfg(
     },
 )
 
+# G1 + RCCU + PLA backpack + ZED X camera deployment variant. Same 29-DoF kinematics
+# and actuators as G1_CYLINDER_CFG; differs only in the torso_link inertial (backpack
+# mass/CoM/inertia merged in), an extra fixed backpack_link visual + box collision, and
+# the decimated backpack mesh. Hand collisions use the box shape (matches main.urdf).
+G1_RCCU_CAMERA_CFG = G1_CYLINDER_CFG.replace(
+    spawn=G1_CYLINDER_CFG.spawn.replace(
+        asset_path=f"{ASSET_DIR}/unitree_description/urdf/g1/g1_rccu_with_camera_pla.urdf",
+    )
+)
+
+# rccu_camera + bimanual YAM gripper payload MASS (0.801 kg per wrist: gripper base, 2 tips, adapter,
+# wrist camera; inertia-only links fixed to *_wrist_yaw_link, merged at import). Hand collision geometry is
+# unchanged (flat/box hand) so object grasping keeps working. Matches the pick/place MuJoCo robot's hand
+# subtree mass (1.626 kg per wrist_roll subtree).
+G1_RCCU_CAMERA_GRIPPER_CFG = G1_CYLINDER_CFG.replace(
+    spawn=G1_CYLINDER_CFG.spawn.replace(
+        asset_path=f"{ASSET_DIR}/unitree_description/urdf/g1/g1_rccu_with_camera_pla_grippers.urdf",
+    )
+)
+
+# Registry of selectable G1 models for training/eval (see --robot flag in train.py).
+G1_ROBOT_CFGS = {
+    "default": G1_CYLINDER_CFG,
+    "rccu_camera": G1_RCCU_CAMERA_CFG,
+    "rccu_camera_gripper": G1_RCCU_CAMERA_GRIPPER_CFG,
+}
+
+
 G1_ACTION_SCALE = {}
 for a in G1_CYLINDER_CFG.actuators.values():
     e = a.effort_limit_sim

@@ -85,6 +85,16 @@ class ManagerBasedRLEnvWithKinematicObjects(ManagerBasedRLEnv):
         self.reset_terminated = self.termination_manager.terminated
         self.reset_time_outs = self.termination_manager.time_outs
         self.reward_buf = self.reward_manager.compute(dt=self.step_dt)
+        # NaN guard (claude 2026-10-23): a physics blow-up's step reward is computed from the exploded state (joint_limit
+        # up to -1e8, or NaN) before the env is reset; keep it finite and bounded so it cannot poison the PPO update.
+        # Legit per-step rewards are |r| < ~0.3 (positive weights sum 8 x dt 0.02), so +-reward_guard_clip only bites on
+        # blow-ups. The count is logged as Guard/clamped_rewards (after the resets, which rebuild extras["log"]).
+        clip = float(getattr(self.cfg, "reward_guard_clip", 2.0))
+        n_clamped = None
+        if clip > 0:
+            bad = ~torch.isfinite(self.reward_buf) | (self.reward_buf.abs() > clip)
+            n_clamped = bad.sum().float()
+            self.reward_buf = torch.nan_to_num(self.reward_buf, nan=0.0, posinf=clip, neginf=-clip).clamp_(-clip, clip)
         if hasattr(self, "_episode_total_reward_sum"):
             self._episode_total_reward_sum += self.reward_buf
 
@@ -106,6 +116,8 @@ class ManagerBasedRLEnvWithKinematicObjects(ManagerBasedRLEnv):
         if "interval" in self.event_manager.available_modes:
             self.event_manager.apply(mode="interval", dt=self.step_dt)
         self.obs_buf = self.observation_manager.compute(update_history=True)
+        if n_clamped is not None:
+            self.extras.setdefault("log", {})["Guard/clamped_rewards"] = n_clamped
 
         return self.obs_buf, self.reward_buf, self.reset_terminated, self.reset_time_outs, self.extras
 

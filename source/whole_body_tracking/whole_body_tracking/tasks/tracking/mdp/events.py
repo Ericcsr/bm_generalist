@@ -523,6 +523,23 @@ def set_proxy_robot_collision_filter(
         )
 
 
+SPREAD_FLAT_MAX_ENVS = 16384
+
+
+def spread_flat_layout(num_slots: int, slot_spacing: float, spacing: float, max_envs: int = SPREAD_FLAT_MAX_ENVS) -> dict:
+    """Grid for envs bound to the shared FLAT slot, placed beyond the terrain-slot grid so robots no longer
+    sit on top of each other (co-located envs blow up the PhysX broadphase quadratically). Shared by the env
+    cfg (which spawns the ground box) and :func:`set_slot_based_env_origins` (which assigns the origins)."""
+    import math as _math
+    rows = int(_math.ceil(num_slots / int(_math.sqrt(num_slots)))) if num_slots > 0 else 1
+    half_x = (rows - 1) / 2.0 * slot_spacing
+    side = int(_math.ceil(_math.sqrt(max_envs)))
+    x0 = half_x + slot_spacing + 20.0
+    y0 = -(side - 1) / 2.0 * spacing
+    return {"x0": x0, "y0": y0, "side": side, "spacing": spacing,
+            "ground_center": (x0 + (side - 1) / 2.0 * spacing, 0.0), "ground_size": side * spacing + 40.0}
+
+
 def set_slot_based_env_origins(
     env: ManagerBasedEnv,
     env_ids: torch.Tensor | None,
@@ -595,6 +612,26 @@ def set_slot_based_env_origins(
     else:
         indices = torch.arange(scene.num_envs, device=origins.device, dtype=torch.long) % num_slots
     scene._default_env_origins = slot_origins[indices].clone()
+
+    # Optional: spread the envs bound to the FLAT slot over their own grid (see spread_flat_layout).
+    if getattr(env.cfg, "spread_flat_envs", False):
+        urdf_paths = getattr(spawn, "urdf_paths", None) or []
+        flat_slots = [i for i, u in enumerate(urdf_paths) if u == "__FLAT_PLANE__"]
+        if flat_slots:
+            flat = torch.zeros_like(indices, dtype=torch.bool)
+            for fs in flat_slots:
+                flat |= indices == fs
+            flat_ids = flat.nonzero(as_tuple=False).squeeze(-1)
+            lay = spread_flat_layout(num_slots, float(env_spacing), float(env.cfg.spread_flat_spacing))
+            n = int(flat_ids.numel())
+            if n > lay["side"] ** 2:
+                raise RuntimeError(f"spread_flat_envs: {n} flat envs exceed the ground grid ({lay['side']}^2)")
+            k = torch.arange(n, device=origins.device)
+            scene._default_env_origins[flat_ids, 0] = lay["x0"] + (k // lay["side"]).to(origins.dtype) * lay["spacing"]
+            scene._default_env_origins[flat_ids, 1] = lay["y0"] + (k % lay["side"]).to(origins.dtype) * lay["spacing"]
+            scene._default_env_origins[flat_ids, 2] = 0.0
+            print(f"[INFO]: spread_flat_envs: {n} flat-slot envs on a {lay['side']}-wide grid, spacing "
+                  f"{lay['spacing']} m, starting x={lay['x0']:.1f}", flush=True)
 
     # Note: motion_extra_origin_xy on terrain spawn is not applied here. Terrain meshes are translated
     # once in spawn_multi_terrain_per_env to slot grid positions only; adding per-motion XY to env_origins

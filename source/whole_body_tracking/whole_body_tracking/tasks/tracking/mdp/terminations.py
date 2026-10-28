@@ -208,3 +208,19 @@ def object_dropped_to_floor(
                 dropped = dropped & wrist_contact_active  # only terminate when reference expects wrist contact
 
     return dropped
+
+
+def physics_blowup(
+    env: ManagerBasedRLEnv, max_joint_vel: float = 100.0, max_root_lin_vel: float = 20.0,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """NaN guard (claude 2026-10-23): end episodes whose physics state exploded -- any non-finite robot state, a joint
+    faster than ``max_joint_vel`` (rad/s; actuator limits are <= 37) or a root faster than ``max_root_lin_vel`` (m/s).
+    Rare isolated blow-ups (mostly OMOMO object envs) produced value losses up to 1e18 and finally a NaN policy std."""
+    robot: Articulation = env.scene[asset_cfg.name]
+    d = robot.data
+    state = torch.cat([d.joint_pos, d.joint_vel, d.root_pos_w, d.root_quat_w, d.root_lin_vel_w, d.root_ang_vel_w], dim=-1)
+    non_finite = ~torch.isfinite(state).all(dim=-1)
+    fast_joint = torch.nan_to_num(d.joint_vel.abs(), nan=0.0).amax(dim=-1) > max_joint_vel
+    fast_root = torch.nan_to_num(d.root_lin_vel_w.norm(dim=-1), nan=0.0) > max_root_lin_vel
+    return non_finite | fast_joint | fast_root

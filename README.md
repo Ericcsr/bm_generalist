@@ -99,6 +99,60 @@ python scripts/rsl_rl/play.py \
 
 The W&B run path is shown on the run overview page and follows `{organization}/{project}/{run_id}`.
 
+## Gripper-robot tracker: changes and fixes (2026-10)
+
+The full recipe (lineage, data, rewards, launch, monitoring, evaluation) is in
+[`TRAINING_RECIPE.md`](TRAINING_RECIPE.md). Summary of what changed:
+
+**Robot and task**
+- `--robot` selects a G1 variant from `G1_ROBOT_CFGS` (`robots/g1.py`). `rccu_camera_gripper` is the
+  RCCU + ZED X + PLA backpack robot plus an inertia-only 0.801 kg gripper payload per wrist (37.03 kg in total).
+  `scripts/standalone_visualize_g1.py --robot <key>` shows a variant in Isaac Sim.
+- New task `Tracking-3pt-Binded-Multi-Terrain-Object-Unilateral-Contact-5Seat-2Bit-FreeWrist-G1-v0`: the 5Seat-2Bit
+  task plus pelvis-frame VR hand-target position / orientation rewards on free-space motions. Observations are
+  unchanged.
+- Speed (~31 s -> ~7.5 s per iteration on 8 GPUs):
+  - `disable_height_scanner` (the scanner is unused);
+  - `spread_flat_envs` (flat-ground envs on their own grid);
+  - a vectorized adaptive sampler;
+  - per-process USD conversion dirs in `train.py`.
+
+**Bug fixes**
+- **Parametric stair data** (`datafix_20261022/`): the 50 `h<rise>_w<tread>_s<speed>` clips stored body arrays in
+  MuJoCo body order. `ee_body_pos` therefore terminated them on every step. The fix is a pure permutation,
+  FK-validated.
+- **No ground under stair terrains:** env cfg flag `terrain_ground_plane=True` adds a z = 0 plane under the
+  terrain-slot grid. Approach and post-stair phases previously had no ground under them.
+- **NaN guard:** isolated physics blow-ups made the policy std NaN and crashed training. Fix:
+  - `mdp.physics_blowup` termination (non-finite state, joint > 100 rad/s, root > 20 m/s);
+  - a per-step reward clamp, `reward_guard_clip=2.0` (logged as `Guard/clamped_rewards`).
+- **Contact labels at 30 fps** (`datafix_20261027/`): the 214 LaFAN `obstacles*` terrain clips stored
+  `contact_mask` at 30 fps on 50 fps motions. The loader index-copies, so their labels ran 1.67x fast and the last
+  ~40% of each clip read "no contact". The masks are resampled to the motion length; foot F1 vs kinematic contact
+  went 0.36 -> 0.74.
+- **Hand contact labels:** wrist labels exist only on object-interaction motions (OMOMO + `csv_hand_object_terrain`).
+  The bilateral wrist contact reward used to penalize any hand–terrain contact on terrain motions. Both wrist
+  contact-label rewards now take `object_motions_only=True` (FreeWrist cfg; per-motion flag
+  `motion_has_object_per_motion`).
+
+**Data fixes are not in git.** `datafix_*/apply.sh` writes the corrected copies into the (untracked) data folders as
+symlinks; `rollback.sh` restores the originals. `scripts/scan_labels_claude.py <out.json>` checks label lengths and
+hand-label coverage. `scripts/rsl_rl/probe_ground_claude.py` checks ground support with PhysX raycasts.
+
+**Launcher** `run_ft_gripper_pp500.sh`
+```bash
+# from scratch, checkpoint every 1000 iterations, 4096 envs per GPU (default)
+MAX_ITERS=60000 RUN_NAME=my_run LOAD_RUN= SAVE_INTERVAL=1000 ./run_ft_gripper_pp500.sh
+# resume LOAD_RUN/CKPT for MAX_ITERS more iterations; NUM_ENVS sets envs per GPU
+MAX_ITERS=30000 RUN_NAME=my_run_r2 LOAD_RUN=<run dir> CKPT=model_27000.pt NUM_ENVS=8192 ./run_ft_gripper_pp500.sh
+```
+- `NUM_ENVS=8192` (~31 / 46 GB per L40S, ~11.5 s per iteration) learned at the same wall-clock rate as 4096. It
+  gave no benchmark gain by ~7k iterations.
+- Best checkpoint so far: the from-scratch 4096-env run's `model_27000`. On the local MuJoCo tracking benchmark
+  (80 clips x 5 seeds) it reaches 89.8% success / 8.5% falls.
+- Checkpoints are not uploaded to wandb (quota). Set `WANDB_UPLOAD_CKPT=1` to re-enable.
+- `scripts/rsl_rl/export_run_pt_to_onnx.py <run dir> --pattern model_N.pt --output-dir <dir>` exports without Isaac.
+
 ## Code Structure
 
 - **`source/whole_body_tracking/whole_body_tracking/tasks/tracking/mdp/`** — MDP terms (commands, rewards, observations, events, terminations)

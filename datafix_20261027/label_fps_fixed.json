@@ -1,0 +1,1286 @@
+[
+ {
+  "stem": "obstacles1_subject1_rf_motion_0",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles1_subject1_rf_motion_0_contact_nodes.npy",
+  "mask_T": 435,
+  "T": 724
+ },
+ {
+  "stem": "obstacles1_subject1_rf_motion_1",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles1_subject1_rf_motion_1_contact_nodes.npy",
+  "mask_T": 403,
+  "T": 670
+ },
+ {
+  "stem": "obstacles1_subject1_rf_motion_2",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles1_subject1_rf_motion_2_contact_nodes.npy",
+  "mask_T": 354,
+  "T": 589
+ },
+ {
+  "stem": "obstacles1_subject1_rf_motion_3",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles1_subject1_rf_motion_3_contact_nodes.npy",
+  "mask_T": 418,
+  "T": 695
+ },
+ {
+  "stem": "obstacles1_subject1_rf_motion_4",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles1_subject1_rf_motion_4_contact_nodes.npy",
+  "mask_T": 1381,
+  "T": 2300
+ },
+ {
+  "stem": "obstacles1_subject1_rf_motion_5",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles1_subject1_rf_motion_5_contact_nodes.npy",
+  "mask_T": 179,
+  "T": 297
+ },
+ {
+  "stem": "obstacles1_subject1_rf_motion_6",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles1_subject1_rf_motion_6_contact_nodes.npy",
+  "mask_T": 113,
+  "T": 187
+ },
+ {
+  "stem": "obstacles1_subject1_rf_motion_7",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles1_subject1_rf_motion_7_contact_nodes.npy",
+  "mask_T": 147,
+  "T": 244
+ },
+ {
+  "stem": "obstacles1_subject1_rf_motion_8",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles1_subject1_rf_motion_8_contact_nodes.npy",
+  "mask_T": 1304,
+  "T": 2172
+ },
+ {
+  "stem": "obstacles1_subject1_rf_motion_9",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles1_subject1_rf_motion_9_contact_nodes.npy",
+  "mask_T": 391,
+  "T": 650
+ },
+ {
+  "stem": "obstacles1_subject2_rf_motion_0",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles1_subject2_rf_motion_0_contact_nodes.npy",
+  "mask_T": 130,
+  "T": 215
+ },
+ {
+  "stem": "obstacles1_subject2_rf_motion_1",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles1_subject2_rf_motion_1_contact_nodes.npy",
+  "mask_T": 988,
+  "T": 1645
+ },
+ {
+  "stem": "obstacles1_subject2_rf_motion_10",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles1_subject2_rf_motion_10_contact_nodes.npy",
+  "mask_T": 216,
+  "T": 359
+ },
+ {
+  "stem": "obstacles1_subject2_rf_motion_2",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles1_subject2_rf_motion_2_contact_nodes.npy",
+  "mask_T": 67,
+  "T": 110
+ },
+ {
+  "stem": "obstacles1_subject2_rf_motion_3",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles1_subject2_rf_motion_3_contact_nodes.npy",
+  "mask_T": 154,
+  "T": 255
+ },
+ {
+  "stem": "obstacles1_subject2_rf_motion_4",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles1_subject2_rf_motion_4_contact_nodes.npy",
+  "mask_T": 150,
+  "T": 249
+ },
+ {
+  "stem": "obstacles1_subject2_rf_motion_5",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles1_subject2_rf_motion_5_contact_nodes.npy",
+  "mask_T": 421,
+  "T": 700
+ },
+ {
+  "stem": "obstacles1_subject2_rf_motion_6",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles1_subject2_rf_motion_6_contact_nodes.npy",
+  "mask_T": 241,
+  "T": 400
+ },
+ {
+  "stem": "obstacles1_subject2_rf_motion_7",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles1_subject2_rf_motion_7_contact_nodes.npy",
+  "mask_T": 739,
+  "T": 1230
+ },
+ {
+  "stem": "obstacles1_subject2_rf_motion_8",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles1_subject2_rf_motion_8_contact_nodes.npy",
+  "mask_T": 212,
+  "T": 352
+ },
+ {
+  "stem": "obstacles1_subject2_rf_motion_9",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles1_subject2_rf_motion_9_contact_nodes.npy",
+  "mask_T": 1694,
+  "T": 2822
+ },
+ {
+  "stem": "obstacles1_subject3_rf_motion_0",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles1_subject3_rf_motion_0_contact_nodes.npy",
+  "mask_T": 130,
+  "T": 215
+ },
+ {
+  "stem": "obstacles1_subject3_rf_motion_1",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles1_subject3_rf_motion_1_contact_nodes.npy",
+  "mask_T": 988,
+  "T": 1645
+ },
+ {
+  "stem": "obstacles1_subject3_rf_motion_10",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles1_subject3_rf_motion_10_contact_nodes.npy",
+  "mask_T": 216,
+  "T": 359
+ },
+ {
+  "stem": "obstacles1_subject3_rf_motion_2",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles1_subject3_rf_motion_2_contact_nodes.npy",
+  "mask_T": 67,
+  "T": 110
+ },
+ {
+  "stem": "obstacles1_subject3_rf_motion_3",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles1_subject3_rf_motion_3_contact_nodes.npy",
+  "mask_T": 154,
+  "T": 255
+ },
+ {
+  "stem": "obstacles1_subject3_rf_motion_4",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles1_subject3_rf_motion_4_contact_nodes.npy",
+  "mask_T": 150,
+  "T": 249
+ },
+ {
+  "stem": "obstacles1_subject3_rf_motion_5",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles1_subject3_rf_motion_5_contact_nodes.npy",
+  "mask_T": 421,
+  "T": 700
+ },
+ {
+  "stem": "obstacles1_subject3_rf_motion_6",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles1_subject3_rf_motion_6_contact_nodes.npy",
+  "mask_T": 241,
+  "T": 400
+ },
+ {
+  "stem": "obstacles1_subject3_rf_motion_7",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles1_subject3_rf_motion_7_contact_nodes.npy",
+  "mask_T": 739,
+  "T": 1230
+ },
+ {
+  "stem": "obstacles1_subject3_rf_motion_8",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles1_subject3_rf_motion_8_contact_nodes.npy",
+  "mask_T": 212,
+  "T": 352
+ },
+ {
+  "stem": "obstacles1_subject3_rf_motion_9",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles1_subject3_rf_motion_9_contact_nodes.npy",
+  "mask_T": 1694,
+  "T": 2822
+ },
+ {
+  "stem": "obstacles1_subject5_rf_motion_0",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles1_subject5_rf_motion_0_contact_nodes.npy",
+  "mask_T": 80,
+  "T": 132
+ },
+ {
+  "stem": "obstacles1_subject5_rf_motion_1",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles1_subject5_rf_motion_1_contact_nodes.npy",
+  "mask_T": 3298,
+  "T": 5495
+ },
+ {
+  "stem": "obstacles1_subject5_rf_motion_2",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles1_subject5_rf_motion_2_contact_nodes.npy",
+  "mask_T": 1419,
+  "T": 2364
+ },
+ {
+  "stem": "obstacles1_subject5_rf_motion_3",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles1_subject5_rf_motion_3_contact_nodes.npy",
+  "mask_T": 85,
+  "T": 140
+ },
+ {
+  "stem": "obstacles1_subject5_rf_motion_4",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles1_subject5_rf_motion_4_contact_nodes.npy",
+  "mask_T": 221,
+  "T": 367
+ },
+ {
+  "stem": "obstacles2_subject1_rf_motion_0",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles2_subject1_rf_motion_0_contact_nodes.npy",
+  "mask_T": 109,
+  "T": 180
+ },
+ {
+  "stem": "obstacles2_subject1_rf_motion_1",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles2_subject1_rf_motion_1_contact_nodes.npy",
+  "mask_T": 835,
+  "T": 1390
+ },
+ {
+  "stem": "obstacles2_subject1_rf_motion_10",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles2_subject1_rf_motion_10_contact_nodes.npy",
+  "mask_T": 433,
+  "T": 720
+ },
+ {
+  "stem": "obstacles2_subject1_rf_motion_11",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles2_subject1_rf_motion_11_contact_nodes.npy",
+  "mask_T": 631,
+  "T": 1050
+ },
+ {
+  "stem": "obstacles2_subject1_rf_motion_12",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles2_subject1_rf_motion_12_contact_nodes.npy",
+  "mask_T": 484,
+  "T": 805
+ },
+ {
+  "stem": "obstacles2_subject1_rf_motion_13",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles2_subject1_rf_motion_13_contact_nodes.npy",
+  "mask_T": 390,
+  "T": 649
+ },
+ {
+  "stem": "obstacles2_subject1_rf_motion_14",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles2_subject1_rf_motion_14_contact_nodes.npy",
+  "mask_T": 612,
+  "T": 1019
+ },
+ {
+  "stem": "obstacles2_subject1_rf_motion_15",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles2_subject1_rf_motion_15_contact_nodes.npy",
+  "mask_T": 37,
+  "T": 60
+ },
+ {
+  "stem": "obstacles2_subject1_rf_motion_2",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles2_subject1_rf_motion_2_contact_nodes.npy",
+  "mask_T": 351,
+  "T": 584
+ },
+ {
+  "stem": "obstacles2_subject1_rf_motion_3",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles2_subject1_rf_motion_3_contact_nodes.npy",
+  "mask_T": 199,
+  "T": 330
+ },
+ {
+  "stem": "obstacles2_subject1_rf_motion_4",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles2_subject1_rf_motion_4_contact_nodes.npy",
+  "mask_T": 179,
+  "T": 297
+ },
+ {
+  "stem": "obstacles2_subject1_rf_motion_5",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles2_subject1_rf_motion_5_contact_nodes.npy",
+  "mask_T": 485,
+  "T": 807
+ },
+ {
+  "stem": "obstacles2_subject1_rf_motion_6",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles2_subject1_rf_motion_6_contact_nodes.npy",
+  "mask_T": 236,
+  "T": 392
+ },
+ {
+  "stem": "obstacles2_subject1_rf_motion_7",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles2_subject1_rf_motion_7_contact_nodes.npy",
+  "mask_T": 991,
+  "T": 1650
+ },
+ {
+  "stem": "obstacles2_subject1_rf_motion_8",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles2_subject1_rf_motion_8_contact_nodes.npy",
+  "mask_T": 784,
+  "T": 1305
+ },
+ {
+  "stem": "obstacles2_subject1_rf_motion_9",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles2_subject1_rf_motion_9_contact_nodes.npy",
+  "mask_T": 497,
+  "T": 827
+ },
+ {
+  "stem": "obstacles2_subject2_rf_motion_0",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles2_subject2_rf_motion_0_contact_nodes.npy",
+  "mask_T": 296,
+  "T": 492
+ },
+ {
+  "stem": "obstacles2_subject2_rf_motion_1",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles2_subject2_rf_motion_1_contact_nodes.npy",
+  "mask_T": 1067,
+  "T": 1777
+ },
+ {
+  "stem": "obstacles2_subject2_rf_motion_2",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles2_subject2_rf_motion_2_contact_nodes.npy",
+  "mask_T": 450,
+  "T": 749
+ },
+ {
+  "stem": "obstacles2_subject2_rf_motion_3",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles2_subject2_rf_motion_3_contact_nodes.npy",
+  "mask_T": 706,
+  "T": 1175
+ },
+ {
+  "stem": "obstacles2_subject2_rf_motion_4",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles2_subject2_rf_motion_4_contact_nodes.npy",
+  "mask_T": 1051,
+  "T": 1750
+ },
+ {
+  "stem": "obstacles2_subject2_rf_motion_5",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles2_subject2_rf_motion_5_contact_nodes.npy",
+  "mask_T": 426,
+  "T": 709
+ },
+ {
+  "stem": "obstacles2_subject2_rf_motion_6",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles2_subject2_rf_motion_6_contact_nodes.npy",
+  "mask_T": 2505,
+  "T": 4174
+ },
+ {
+  "stem": "obstacles2_subject2_rf_motion_7",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles2_subject2_rf_motion_7_contact_nodes.npy",
+  "mask_T": 289,
+  "T": 480
+ },
+ {
+  "stem": "obstacles2_subject2_rf_motion_8",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles2_subject2_rf_motion_8_contact_nodes.npy",
+  "mask_T": 396,
+  "T": 659
+ },
+ {
+  "stem": "obstacles2_subject2_rf_motion_9",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles2_subject2_rf_motion_9_contact_nodes.npy",
+  "mask_T": 53,
+  "T": 87
+ },
+ {
+  "stem": "obstacles2_subject5_rf_motion_0",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles2_subject5_rf_motion_0_contact_nodes.npy",
+  "mask_T": 110,
+  "T": 182
+ },
+ {
+  "stem": "obstacles2_subject5_rf_motion_1",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles2_subject5_rf_motion_1_contact_nodes.npy",
+  "mask_T": 824,
+  "T": 1372
+ },
+ {
+  "stem": "obstacles2_subject5_rf_motion_2",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles2_subject5_rf_motion_2_contact_nodes.npy",
+  "mask_T": 2950,
+  "T": 4915
+ },
+ {
+  "stem": "obstacles2_subject5_rf_motion_3",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles2_subject5_rf_motion_3_contact_nodes.npy",
+  "mask_T": 859,
+  "T": 1430
+ },
+ {
+  "stem": "obstacles2_subject5_rf_motion_4",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles2_subject5_rf_motion_4_contact_nodes.npy",
+  "mask_T": 858,
+  "T": 1429
+ },
+ {
+  "stem": "obstacles2_subject5_rf_motion_5",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles2_subject5_rf_motion_5_contact_nodes.npy",
+  "mask_T": 618,
+  "T": 1029
+ },
+ {
+  "stem": "obstacles2_subject5_rf_motion_6",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles2_subject5_rf_motion_6_contact_nodes.npy",
+  "mask_T": 365,
+  "T": 607
+ },
+ {
+  "stem": "obstacles2_subject5_rf_motion_7",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles2_subject5_rf_motion_7_contact_nodes.npy",
+  "mask_T": 596,
+  "T": 992
+ },
+ {
+  "stem": "obstacles3_subject3_rf_motion_0",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles3_subject3_rf_motion_0_contact_nodes.npy",
+  "mask_T": 128,
+  "T": 212
+ },
+ {
+  "stem": "obstacles3_subject3_rf_motion_1",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles3_subject3_rf_motion_1_contact_nodes.npy",
+  "mask_T": 860,
+  "T": 1432
+ },
+ {
+  "stem": "obstacles3_subject3_rf_motion_10",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles3_subject3_rf_motion_10_contact_nodes.npy",
+  "mask_T": 995,
+  "T": 1657
+ },
+ {
+  "stem": "obstacles3_subject3_rf_motion_2",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles3_subject3_rf_motion_2_contact_nodes.npy",
+  "mask_T": 497,
+  "T": 827
+ },
+ {
+  "stem": "obstacles3_subject3_rf_motion_3",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles3_subject3_rf_motion_3_contact_nodes.npy",
+  "mask_T": 399,
+  "T": 664
+ },
+ {
+  "stem": "obstacles3_subject3_rf_motion_4",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles3_subject3_rf_motion_4_contact_nodes.npy",
+  "mask_T": 39,
+  "T": 64
+ },
+ {
+  "stem": "obstacles3_subject3_rf_motion_5",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles3_subject3_rf_motion_5_contact_nodes.npy",
+  "mask_T": 160,
+  "T": 265
+ },
+ {
+  "stem": "obstacles3_subject3_rf_motion_6",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles3_subject3_rf_motion_6_contact_nodes.npy",
+  "mask_T": 74,
+  "T": 122
+ },
+ {
+  "stem": "obstacles3_subject3_rf_motion_7",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles3_subject3_rf_motion_7_contact_nodes.npy",
+  "mask_T": 54,
+  "T": 89
+ },
+ {
+  "stem": "obstacles3_subject3_rf_motion_8",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles3_subject3_rf_motion_8_contact_nodes.npy",
+  "mask_T": 90,
+  "T": 149
+ },
+ {
+  "stem": "obstacles3_subject3_rf_motion_9",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles3_subject3_rf_motion_9_contact_nodes.npy",
+  "mask_T": 108,
+  "T": 179
+ },
+ {
+  "stem": "obstacles3_subject4_rf_motion_0",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles3_subject4_rf_motion_0_contact_nodes.npy",
+  "mask_T": 516,
+  "T": 859
+ },
+ {
+  "stem": "obstacles3_subject4_rf_motion_1",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles3_subject4_rf_motion_1_contact_nodes.npy",
+  "mask_T": 133,
+  "T": 220
+ },
+ {
+  "stem": "obstacles3_subject4_rf_motion_2",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles3_subject4_rf_motion_2_contact_nodes.npy",
+  "mask_T": 1042,
+  "T": 1735
+ },
+ {
+  "stem": "obstacles3_subject4_rf_motion_3",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles3_subject4_rf_motion_3_contact_nodes.npy",
+  "mask_T": 798,
+  "T": 1329
+ },
+ {
+  "stem": "obstacles3_subject4_rf_motion_4",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles3_subject4_rf_motion_4_contact_nodes.npy",
+  "mask_T": 896,
+  "T": 1492
+ },
+ {
+  "stem": "obstacles3_subject4_rf_motion_5",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles3_subject4_rf_motion_5_contact_nodes.npy",
+  "mask_T": 500,
+  "T": 832
+ },
+ {
+  "stem": "obstacles4_subject2_rf_motion_0",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles4_subject2_rf_motion_0_contact_nodes.npy",
+  "mask_T": 140,
+  "T": 232
+ },
+ {
+  "stem": "obstacles4_subject2_rf_motion_1",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles4_subject2_rf_motion_1_contact_nodes.npy",
+  "mask_T": 447,
+  "T": 744
+ },
+ {
+  "stem": "obstacles4_subject2_rf_motion_2",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles4_subject2_rf_motion_2_contact_nodes.npy",
+  "mask_T": 1239,
+  "T": 2064
+ },
+ {
+  "stem": "obstacles4_subject2_rf_motion_3",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles4_subject2_rf_motion_3_contact_nodes.npy",
+  "mask_T": 118,
+  "T": 195
+ },
+ {
+  "stem": "obstacles4_subject2_rf_motion_4",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles4_subject2_rf_motion_4_contact_nodes.npy",
+  "mask_T": 787,
+  "T": 1310
+ },
+ {
+  "stem": "obstacles4_subject2_rf_motion_5",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles4_subject2_rf_motion_5_contact_nodes.npy",
+  "mask_T": 2536,
+  "T": 4225
+ },
+ {
+  "stem": "obstacles4_subject2_rf_motion_6",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles4_subject2_rf_motion_6_contact_nodes.npy",
+  "mask_T": 422,
+  "T": 702
+ },
+ {
+  "stem": "obstacles4_subject2_rf_motion_7",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles4_subject2_rf_motion_7_contact_nodes.npy",
+  "mask_T": 269,
+  "T": 447
+ },
+ {
+  "stem": "obstacles4_subject2_rf_motion_8",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles4_subject2_rf_motion_8_contact_nodes.npy",
+  "mask_T": 652,
+  "T": 1085
+ },
+ {
+  "stem": "obstacles4_subject3_rf_motion_0",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles4_subject3_rf_motion_0_contact_nodes.npy",
+  "mask_T": 182,
+  "T": 302
+ },
+ {
+  "stem": "obstacles4_subject3_rf_motion_1",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles4_subject3_rf_motion_1_contact_nodes.npy",
+  "mask_T": 295,
+  "T": 490
+ },
+ {
+  "stem": "obstacles4_subject3_rf_motion_10",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles4_subject3_rf_motion_10_contact_nodes.npy",
+  "mask_T": 472,
+  "T": 785
+ },
+ {
+  "stem": "obstacles4_subject3_rf_motion_11",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles4_subject3_rf_motion_11_contact_nodes.npy",
+  "mask_T": 177,
+  "T": 294
+ },
+ {
+  "stem": "obstacles4_subject3_rf_motion_12",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles4_subject3_rf_motion_12_contact_nodes.npy",
+  "mask_T": 53,
+  "T": 87
+ },
+ {
+  "stem": "obstacles4_subject3_rf_motion_13",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles4_subject3_rf_motion_13_contact_nodes.npy",
+  "mask_T": 218,
+  "T": 362
+ },
+ {
+  "stem": "obstacles4_subject3_rf_motion_14",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles4_subject3_rf_motion_14_contact_nodes.npy",
+  "mask_T": 274,
+  "T": 455
+ },
+ {
+  "stem": "obstacles4_subject3_rf_motion_15",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles4_subject3_rf_motion_15_contact_nodes.npy",
+  "mask_T": 435,
+  "T": 724
+ },
+ {
+  "stem": "obstacles4_subject3_rf_motion_16",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles4_subject3_rf_motion_16_contact_nodes.npy",
+  "mask_T": 898,
+  "T": 1495
+ },
+ {
+  "stem": "obstacles4_subject3_rf_motion_17",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles4_subject3_rf_motion_17_contact_nodes.npy",
+  "mask_T": 156,
+  "T": 259
+ },
+ {
+  "stem": "obstacles4_subject3_rf_motion_18",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles4_subject3_rf_motion_18_contact_nodes.npy",
+  "mask_T": 266,
+  "T": 442
+ },
+ {
+  "stem": "obstacles4_subject3_rf_motion_19",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles4_subject3_rf_motion_19_contact_nodes.npy",
+  "mask_T": 579,
+  "T": 964
+ },
+ {
+  "stem": "obstacles4_subject3_rf_motion_2",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles4_subject3_rf_motion_2_contact_nodes.npy",
+  "mask_T": 40,
+  "T": 65
+ },
+ {
+  "stem": "obstacles4_subject3_rf_motion_20",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles4_subject3_rf_motion_20_contact_nodes.npy",
+  "mask_T": 433,
+  "T": 720
+ },
+ {
+  "stem": "obstacles4_subject3_rf_motion_3",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles4_subject3_rf_motion_3_contact_nodes.npy",
+  "mask_T": 74,
+  "T": 122
+ },
+ {
+  "stem": "obstacles4_subject3_rf_motion_4",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles4_subject3_rf_motion_4_contact_nodes.npy",
+  "mask_T": 171,
+  "T": 284
+ },
+ {
+  "stem": "obstacles4_subject3_rf_motion_5",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles4_subject3_rf_motion_5_contact_nodes.npy",
+  "mask_T": 407,
+  "T": 677
+ },
+ {
+  "stem": "obstacles4_subject3_rf_motion_6",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles4_subject3_rf_motion_6_contact_nodes.npy",
+  "mask_T": 284,
+  "T": 472
+ },
+ {
+  "stem": "obstacles4_subject3_rf_motion_7",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles4_subject3_rf_motion_7_contact_nodes.npy",
+  "mask_T": 156,
+  "T": 259
+ },
+ {
+  "stem": "obstacles4_subject3_rf_motion_8",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles4_subject3_rf_motion_8_contact_nodes.npy",
+  "mask_T": 76,
+  "T": 125
+ },
+ {
+  "stem": "obstacles4_subject3_rf_motion_9",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles4_subject3_rf_motion_9_contact_nodes.npy",
+  "mask_T": 369,
+  "T": 614
+ },
+ {
+  "stem": "obstacles4_subject4_rf_motion_0",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles4_subject4_rf_motion_0_contact_nodes.npy",
+  "mask_T": 784,
+  "T": 1305
+ },
+ {
+  "stem": "obstacles4_subject4_rf_motion_1",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles4_subject4_rf_motion_1_contact_nodes.npy",
+  "mask_T": 386,
+  "T": 642
+ },
+ {
+  "stem": "obstacles4_subject4_rf_motion_2",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles4_subject4_rf_motion_2_contact_nodes.npy",
+  "mask_T": 833,
+  "T": 1387
+ },
+ {
+  "stem": "obstacles4_subject4_rf_motion_3",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles4_subject4_rf_motion_3_contact_nodes.npy",
+  "mask_T": 686,
+  "T": 1142
+ },
+ {
+  "stem": "obstacles4_subject4_rf_motion_4",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles4_subject4_rf_motion_4_contact_nodes.npy",
+  "mask_T": 509,
+  "T": 847
+ },
+ {
+  "stem": "obstacles4_subject4_rf_motion_5",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles4_subject4_rf_motion_5_contact_nodes.npy",
+  "mask_T": 1087,
+  "T": 1810
+ },
+ {
+  "stem": "obstacles4_subject4_rf_motion_6",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles4_subject4_rf_motion_6_contact_nodes.npy",
+  "mask_T": 102,
+  "T": 169
+ },
+ {
+  "stem": "obstacles4_subject4_rf_motion_7",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles4_subject4_rf_motion_7_contact_nodes.npy",
+  "mask_T": 2628,
+  "T": 4379
+ },
+ {
+  "stem": "obstacles4_subject4_rf_motion_8",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles4_subject4_rf_motion_8_contact_nodes.npy",
+  "mask_T": 217,
+  "T": 360
+ },
+ {
+  "stem": "obstacles5_subject2_rf_motion_0",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject2_rf_motion_0_contact_nodes.npy",
+  "mask_T": 156,
+  "T": 259
+ },
+ {
+  "stem": "obstacles5_subject2_rf_motion_1",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject2_rf_motion_1_contact_nodes.npy",
+  "mask_T": 114,
+  "T": 189
+ },
+ {
+  "stem": "obstacles5_subject2_rf_motion_10",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject2_rf_motion_10_contact_nodes.npy",
+  "mask_T": 302,
+  "T": 502
+ },
+ {
+  "stem": "obstacles5_subject2_rf_motion_11",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject2_rf_motion_11_contact_nodes.npy",
+  "mask_T": 184,
+  "T": 305
+ },
+ {
+  "stem": "obstacles5_subject2_rf_motion_12",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject2_rf_motion_12_contact_nodes.npy",
+  "mask_T": 58,
+  "T": 95
+ },
+ {
+  "stem": "obstacles5_subject2_rf_motion_13",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject2_rf_motion_13_contact_nodes.npy",
+  "mask_T": 3860,
+  "T": 6432
+ },
+ {
+  "stem": "obstacles5_subject2_rf_motion_14",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject2_rf_motion_14_contact_nodes.npy",
+  "mask_T": 295,
+  "T": 490
+ },
+ {
+  "stem": "obstacles5_subject2_rf_motion_15",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject2_rf_motion_15_contact_nodes.npy",
+  "mask_T": 32,
+  "T": 52
+ },
+ {
+  "stem": "obstacles5_subject2_rf_motion_16",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject2_rf_motion_16_contact_nodes.npy",
+  "mask_T": 122,
+  "T": 202
+ },
+ {
+  "stem": "obstacles5_subject2_rf_motion_2",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject2_rf_motion_2_contact_nodes.npy",
+  "mask_T": 33,
+  "T": 54
+ },
+ {
+  "stem": "obstacles5_subject2_rf_motion_3",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject2_rf_motion_3_contact_nodes.npy",
+  "mask_T": 33,
+  "T": 54
+ },
+ {
+  "stem": "obstacles5_subject2_rf_motion_4",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject2_rf_motion_4_contact_nodes.npy",
+  "mask_T": 63,
+  "T": 104
+ },
+ {
+  "stem": "obstacles5_subject2_rf_motion_5",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject2_rf_motion_5_contact_nodes.npy",
+  "mask_T": 137,
+  "T": 227
+ },
+ {
+  "stem": "obstacles5_subject2_rf_motion_6",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject2_rf_motion_6_contact_nodes.npy",
+  "mask_T": 133,
+  "T": 220
+ },
+ {
+  "stem": "obstacles5_subject2_rf_motion_7",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject2_rf_motion_7_contact_nodes.npy",
+  "mask_T": 342,
+  "T": 569
+ },
+ {
+  "stem": "obstacles5_subject2_rf_motion_8",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject2_rf_motion_8_contact_nodes.npy",
+  "mask_T": 208,
+  "T": 345
+ },
+ {
+  "stem": "obstacles5_subject2_rf_motion_9",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject2_rf_motion_9_contact_nodes.npy",
+  "mask_T": 213,
+  "T": 354
+ },
+ {
+  "stem": "obstacles5_subject3_rf_motion_0",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject3_rf_motion_0_contact_nodes.npy",
+  "mask_T": 148,
+  "T": 245
+ },
+ {
+  "stem": "obstacles5_subject3_rf_motion_1",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject3_rf_motion_1_contact_nodes.npy",
+  "mask_T": 557,
+  "T": 927
+ },
+ {
+  "stem": "obstacles5_subject3_rf_motion_10",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject3_rf_motion_10_contact_nodes.npy",
+  "mask_T": 211,
+  "T": 350
+ },
+ {
+  "stem": "obstacles5_subject3_rf_motion_11",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject3_rf_motion_11_contact_nodes.npy",
+  "mask_T": 50,
+  "T": 82
+ },
+ {
+  "stem": "obstacles5_subject3_rf_motion_12",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject3_rf_motion_12_contact_nodes.npy",
+  "mask_T": 451,
+  "T": 750
+ },
+ {
+  "stem": "obstacles5_subject3_rf_motion_13",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject3_rf_motion_13_contact_nodes.npy",
+  "mask_T": 192,
+  "T": 319
+ },
+ {
+  "stem": "obstacles5_subject3_rf_motion_14",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject3_rf_motion_14_contact_nodes.npy",
+  "mask_T": 1998,
+  "T": 3329
+ },
+ {
+  "stem": "obstacles5_subject3_rf_motion_2",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject3_rf_motion_2_contact_nodes.npy",
+  "mask_T": 130,
+  "T": 215
+ },
+ {
+  "stem": "obstacles5_subject3_rf_motion_3",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject3_rf_motion_3_contact_nodes.npy",
+  "mask_T": 956,
+  "T": 1592
+ },
+ {
+  "stem": "obstacles5_subject3_rf_motion_4",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject3_rf_motion_4_contact_nodes.npy",
+  "mask_T": 245,
+  "T": 407
+ },
+ {
+  "stem": "obstacles5_subject3_rf_motion_5",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject3_rf_motion_5_contact_nodes.npy",
+  "mask_T": 126,
+  "T": 209
+ },
+ {
+  "stem": "obstacles5_subject3_rf_motion_6",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject3_rf_motion_6_contact_nodes.npy",
+  "mask_T": 33,
+  "T": 54
+ },
+ {
+  "stem": "obstacles5_subject3_rf_motion_7",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject3_rf_motion_7_contact_nodes.npy",
+  "mask_T": 615,
+  "T": 1024
+ },
+ {
+  "stem": "obstacles5_subject3_rf_motion_8",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject3_rf_motion_8_contact_nodes.npy",
+  "mask_T": 85,
+  "T": 140
+ },
+ {
+  "stem": "obstacles5_subject3_rf_motion_9",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject3_rf_motion_9_contact_nodes.npy",
+  "mask_T": 1136,
+  "T": 1892
+ },
+ {
+  "stem": "obstacles5_subject4_rf_motion_0",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject4_rf_motion_0_contact_nodes.npy",
+  "mask_T": 119,
+  "T": 197
+ },
+ {
+  "stem": "obstacles5_subject4_rf_motion_1",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject4_rf_motion_1_contact_nodes.npy",
+  "mask_T": 551,
+  "T": 917
+ },
+ {
+  "stem": "obstacles5_subject4_rf_motion_10",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject4_rf_motion_10_contact_nodes.npy",
+  "mask_T": 164,
+  "T": 272
+ },
+ {
+  "stem": "obstacles5_subject4_rf_motion_11",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject4_rf_motion_11_contact_nodes.npy",
+  "mask_T": 548,
+  "T": 912
+ },
+ {
+  "stem": "obstacles5_subject4_rf_motion_12",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject4_rf_motion_12_contact_nodes.npy",
+  "mask_T": 374,
+  "T": 622
+ },
+ {
+  "stem": "obstacles5_subject4_rf_motion_13",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject4_rf_motion_13_contact_nodes.npy",
+  "mask_T": 84,
+  "T": 139
+ },
+ {
+  "stem": "obstacles5_subject4_rf_motion_14",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject4_rf_motion_14_contact_nodes.npy",
+  "mask_T": 1046,
+  "T": 1742
+ },
+ {
+  "stem": "obstacles5_subject4_rf_motion_15",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject4_rf_motion_15_contact_nodes.npy",
+  "mask_T": 436,
+  "T": 725
+ },
+ {
+  "stem": "obstacles5_subject4_rf_motion_16",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject4_rf_motion_16_contact_nodes.npy",
+  "mask_T": 774,
+  "T": 1289
+ },
+ {
+  "stem": "obstacles5_subject4_rf_motion_17",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject4_rf_motion_17_contact_nodes.npy",
+  "mask_T": 78,
+  "T": 129
+ },
+ {
+  "stem": "obstacles5_subject4_rf_motion_18",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject4_rf_motion_18_contact_nodes.npy",
+  "mask_T": 107,
+  "T": 177
+ },
+ {
+  "stem": "obstacles5_subject4_rf_motion_2",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject4_rf_motion_2_contact_nodes.npy",
+  "mask_T": 443,
+  "T": 737
+ },
+ {
+  "stem": "obstacles5_subject4_rf_motion_3",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject4_rf_motion_3_contact_nodes.npy",
+  "mask_T": 248,
+  "T": 412
+ },
+ {
+  "stem": "obstacles5_subject4_rf_motion_4",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject4_rf_motion_4_contact_nodes.npy",
+  "mask_T": 72,
+  "T": 119
+ },
+ {
+  "stem": "obstacles5_subject4_rf_motion_5",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject4_rf_motion_5_contact_nodes.npy",
+  "mask_T": 340,
+  "T": 565
+ },
+ {
+  "stem": "obstacles5_subject4_rf_motion_6",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject4_rf_motion_6_contact_nodes.npy",
+  "mask_T": 59,
+  "T": 97
+ },
+ {
+  "stem": "obstacles5_subject4_rf_motion_7",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject4_rf_motion_7_contact_nodes.npy",
+  "mask_T": 590,
+  "T": 982
+ },
+ {
+  "stem": "obstacles5_subject4_rf_motion_8",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject4_rf_motion_8_contact_nodes.npy",
+  "mask_T": 311,
+  "T": 517
+ },
+ {
+  "stem": "obstacles5_subject4_rf_motion_9",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles5_subject4_rf_motion_9_contact_nodes.npy",
+  "mask_T": 246,
+  "T": 409
+ },
+ {
+  "stem": "obstacles6_subject1_rf_motion_0",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles6_subject1_rf_motion_0_contact_nodes.npy",
+  "mask_T": 307,
+  "T": 510
+ },
+ {
+  "stem": "obstacles6_subject1_rf_motion_1",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles6_subject1_rf_motion_1_contact_nodes.npy",
+  "mask_T": 409,
+  "T": 680
+ },
+ {
+  "stem": "obstacles6_subject1_rf_motion_10",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles6_subject1_rf_motion_10_contact_nodes.npy",
+  "mask_T": 118,
+  "T": 195
+ },
+ {
+  "stem": "obstacles6_subject1_rf_motion_11",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles6_subject1_rf_motion_11_contact_nodes.npy",
+  "mask_T": 747,
+  "T": 1244
+ },
+ {
+  "stem": "obstacles6_subject1_rf_motion_2",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles6_subject1_rf_motion_2_contact_nodes.npy",
+  "mask_T": 378,
+  "T": 629
+ },
+ {
+  "stem": "obstacles6_subject1_rf_motion_3",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles6_subject1_rf_motion_3_contact_nodes.npy",
+  "mask_T": 66,
+  "T": 109
+ },
+ {
+  "stem": "obstacles6_subject1_rf_motion_4",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles6_subject1_rf_motion_4_contact_nodes.npy",
+  "mask_T": 679,
+  "T": 1130
+ },
+ {
+  "stem": "obstacles6_subject1_rf_motion_5",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles6_subject1_rf_motion_5_contact_nodes.npy",
+  "mask_T": 2980,
+  "T": 4965
+ },
+ {
+  "stem": "obstacles6_subject1_rf_motion_6",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles6_subject1_rf_motion_6_contact_nodes.npy",
+  "mask_T": 219,
+  "T": 364
+ },
+ {
+  "stem": "obstacles6_subject1_rf_motion_7",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles6_subject1_rf_motion_7_contact_nodes.npy",
+  "mask_T": 168,
+  "T": 279
+ },
+ {
+  "stem": "obstacles6_subject1_rf_motion_8",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles6_subject1_rf_motion_8_contact_nodes.npy",
+  "mask_T": 397,
+  "T": 660
+ },
+ {
+  "stem": "obstacles6_subject1_rf_motion_9",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles6_subject1_rf_motion_9_contact_nodes.npy",
+  "mask_T": 102,
+  "T": 169
+ },
+ {
+  "stem": "obstacles6_subject4_rf_motion_0",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles6_subject4_rf_motion_0_contact_nodes.npy",
+  "mask_T": 103,
+  "T": 170
+ },
+ {
+  "stem": "obstacles6_subject4_rf_motion_1",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles6_subject4_rf_motion_1_contact_nodes.npy",
+  "mask_T": 465,
+  "T": 774
+ },
+ {
+  "stem": "obstacles6_subject4_rf_motion_10",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles6_subject4_rf_motion_10_contact_nodes.npy",
+  "mask_T": 192,
+  "T": 319
+ },
+ {
+  "stem": "obstacles6_subject4_rf_motion_11",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles6_subject4_rf_motion_11_contact_nodes.npy",
+  "mask_T": 47,
+  "T": 77
+ },
+ {
+  "stem": "obstacles6_subject4_rf_motion_12",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles6_subject4_rf_motion_12_contact_nodes.npy",
+  "mask_T": 33,
+  "T": 54
+ },
+ {
+  "stem": "obstacles6_subject4_rf_motion_13",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles6_subject4_rf_motion_13_contact_nodes.npy",
+  "mask_T": 180,
+  "T": 299
+ },
+ {
+  "stem": "obstacles6_subject4_rf_motion_14",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles6_subject4_rf_motion_14_contact_nodes.npy",
+  "mask_T": 316,
+  "T": 525
+ },
+ {
+  "stem": "obstacles6_subject4_rf_motion_15",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles6_subject4_rf_motion_15_contact_nodes.npy",
+  "mask_T": 1262,
+  "T": 2102
+ },
+ {
+  "stem": "obstacles6_subject4_rf_motion_16",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles6_subject4_rf_motion_16_contact_nodes.npy",
+  "mask_T": 300,
+  "T": 499
+ },
+ {
+  "stem": "obstacles6_subject4_rf_motion_17",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles6_subject4_rf_motion_17_contact_nodes.npy",
+  "mask_T": 181,
+  "T": 300
+ },
+ {
+  "stem": "obstacles6_subject4_rf_motion_18",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles6_subject4_rf_motion_18_contact_nodes.npy",
+  "mask_T": 300,
+  "T": 499
+ },
+ {
+  "stem": "obstacles6_subject4_rf_motion_2",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles6_subject4_rf_motion_2_contact_nodes.npy",
+  "mask_T": 290,
+  "T": 482
+ },
+ {
+  "stem": "obstacles6_subject4_rf_motion_3",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles6_subject4_rf_motion_3_contact_nodes.npy",
+  "mask_T": 433,
+  "T": 720
+ },
+ {
+  "stem": "obstacles6_subject4_rf_motion_4",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles6_subject4_rf_motion_4_contact_nodes.npy",
+  "mask_T": 415,
+  "T": 690
+ },
+ {
+  "stem": "obstacles6_subject4_rf_motion_5",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles6_subject4_rf_motion_5_contact_nodes.npy",
+  "mask_T": 799,
+  "T": 1330
+ },
+ {
+  "stem": "obstacles6_subject4_rf_motion_6",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles6_subject4_rf_motion_6_contact_nodes.npy",
+  "mask_T": 71,
+  "T": 117
+ },
+ {
+  "stem": "obstacles6_subject4_rf_motion_7",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles6_subject4_rf_motion_7_contact_nodes.npy",
+  "mask_T": 30,
+  "T": 49
+ },
+ {
+  "stem": "obstacles6_subject4_rf_motion_8",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles6_subject4_rf_motion_8_contact_nodes.npy",
+  "mask_T": 120,
+  "T": 199
+ },
+ {
+  "stem": "obstacles6_subject4_rf_motion_9",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles6_subject4_rf_motion_9_contact_nodes.npy",
+  "mask_T": 157,
+  "T": 260
+ },
+ {
+  "stem": "obstacles6_subject5_rf_motion_0",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles6_subject5_rf_motion_0_contact_nodes.npy",
+  "mask_T": 91,
+  "T": 150
+ },
+ {
+  "stem": "obstacles6_subject5_rf_motion_1",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles6_subject5_rf_motion_1_contact_nodes.npy",
+  "mask_T": 690,
+  "T": 1149
+ },
+ {
+  "stem": "obstacles6_subject5_rf_motion_2",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles6_subject5_rf_motion_2_contact_nodes.npy",
+  "mask_T": 860,
+  "T": 1432
+ },
+ {
+  "stem": "obstacles6_subject5_rf_motion_3",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles6_subject5_rf_motion_3_contact_nodes.npy",
+  "mask_T": 1286,
+  "T": 2142
+ },
+ {
+  "stem": "obstacles6_subject5_rf_motion_4",
+  "label": "lafan_terrain/all_lafan_terrain_rf_bones_seat_stair/obstacles6_subject5_rf_motion_4_contact_nodes.npy",
+  "mask_T": 4623,
+  "T": 7704
+ }
+]

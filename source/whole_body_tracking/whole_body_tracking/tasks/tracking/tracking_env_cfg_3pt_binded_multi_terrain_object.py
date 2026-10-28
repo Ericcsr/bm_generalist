@@ -790,6 +790,9 @@ class TerminationsCfg:
     #     },
     # )
 
+    # NaN guard (claude 2026-10-23): end exploded episodes (non-finite state, joint > 100 rad/s, root > 20 m/s)
+    physics_blowup = DoneTerm(func=mdp.physics_blowup, params={"max_joint_vel": 100.0, "max_root_lin_vel": 20.0})
+
     bad_wrist_contact_mismatch = DoneTerm(
         func=mdp.bad_wrist_contact_mismatch_duration,
         params={
@@ -908,9 +911,23 @@ class Tracking3ptBindedMultiTerrainObjectEnvCfg(ManagerBasedRLEnvCfg):
     wrist_mismatch_strict_after_env_steps: int = 15000 * 24
     wrist_mismatch_strict_max_mismatch_steps: int = 20
     motion_category_per_motion: list[int] = field(default_factory=list)
+    #: Per motion: True when it has a real object proxy (OMOMO object motions and object_terrain motions such as
+    #: lift_crate). Used by rewards with ``object_motions_only`` (wrist contact labels exist only there).
+    motion_has_object_per_motion: list[bool] = field(default_factory=list)
     num_envs: int = 4096
     physics_phase_flag: bool = False
     env_spacing: float = 10.0
+    #: Drop the (unused unless a height_scan obs term is enabled) MultiMeshRayCaster: ~400 ms/step with ~190 mesh slots.
+    disable_height_scanner: bool = False
+    #: Spread envs bound to the shared flat slot over their own grid on a dedicated ground box (PhysX ~4x faster).
+    spread_flat_envs: bool = False
+    spread_flat_spacing: float = 4.0
+    #: Ground plane at z=0 under the whole terrain-slot grid. The stair terrain meshes contain only the staircase, so
+    #: without it the robot stands over nothing on the approach / after the stairs (parametric stairs: whole flat
+    #: approach; ~25% of their frames). Safe: no terrain mesh goes below z=-0.02 m. (claude 2026-10-22)
+    terrain_ground_plane: bool = True
+    #: NaN guard: per-step reward clamp in ManagerBasedRLEnvWithKinematicObjects.step (non-finite -> 0); 0 disables.
+    reward_guard_clip: float = 2.0
 
     scene: InteractiveSceneCfg = MISSING
     observations: ObservationsCfg = ObservationsCfg()
@@ -935,6 +952,38 @@ class Tracking3ptBindedMultiTerrainObjectEnvCfg(ManagerBasedRLEnvCfg):
         self.commands.motion.object_terrain_folder_path = (
             str(object_terrain_resolved) if object_terrain_resolved is not None else ""
         )
+        if self.disable_height_scanner:
+            self.scene.height_scanner = None
+        if self.spread_flat_envs:
+            urdf_paths = list(getattr(self.scene.terrain.spawn, "urdf_paths", None) or [])
+            lay = mdp.spread_flat_layout(len(urdf_paths), float(self.scene.terrain.spawn.env_spacing), float(self.spread_flat_spacing))
+            cx, cy = lay["ground_center"]
+            # Same geometry/material as the old shared flat slot: 1 cm box, top at +5 mm, default material.
+            self.scene.spread_flat_ground = AssetBaseCfg(
+                prim_path="/World/spreadFlatGround",
+                spawn=sim_utils.CuboidCfg(
+                    size=(lay["ground_size"], lay["ground_size"], 0.01),
+                    collision_props=sim_utils.CollisionPropertiesCfg(),
+                    physics_material=sim_utils.RigidBodyMaterialCfg(),
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.4, 0.3)),
+                ),
+                init_state=AssetBaseCfg.InitialStateCfg(pos=(cx, cy, 0.0)),
+                collision_group=-1,
+            )
+        if self.terrain_ground_plane:
+            import math as _math
+            _n = len(list(getattr(self.scene.terrain.spawn, "urdf_paths", None) or [])) or 1
+            _rows = int(_math.ceil(_n / int(_math.sqrt(_n))))
+            _cols = int(_math.ceil(_n / _rows))
+            _sp = float(self.scene.terrain.spawn.env_spacing)
+            # same physics material as the terrain meshes; collides with every robot (like the terrain prims)
+            self.scene.terrain_ground = AssetBaseCfg(
+                prim_path="/World/terrainGroundPlane",
+                spawn=sim_utils.GroundPlaneCfg(
+                    size=(_rows * _sp + 20.0, _cols * _sp + 20.0), physics_material=sim_utils.RigidBodyMaterialCfg()
+                ),
+                collision_group=-1,
+            )
         global _object_trajectories
         _object_trajectories = _load_object_trajectories_merged(object_resolved, object_terrain_resolved, motion_files)
         if _object_trajectories:
@@ -997,6 +1046,9 @@ class Tracking3ptBindedMultiTerrainObjectEnvCfg(ManagerBasedRLEnvCfg):
             merged_object_terrain_origin_offset_xy=self.merged_object_terrain_origin_offset_xy,
         )
         self.motion_category_per_motion = motion_categories
+        self.motion_has_object_per_motion = [p != str(_EMPTY_PROXY_URDF) for p in proxy_urdf_paths]
+        print(f"[INFO]: {sum(self.motion_has_object_per_motion)} motion(s) with an object proxy "
+              f"(wrist contact-label rewards with object_motions_only=True apply there only)")
         num_motions = len(motion_files)
         num_slots = len(terrain_urdf_paths)
         num_envs = max(self.num_envs, num_motions)
@@ -1080,6 +1132,9 @@ class Tracking3ptBindedMultiTerrainObjectEnvCfg(ManagerBasedRLEnvCfg):
                     merged_object_terrain_origin_offset_xy=self.merged_object_terrain_origin_offset_xy,
                 )
                 self.motion_category_per_motion = motion_categories
+                self.motion_has_object_per_motion = [p != str(_EMPTY_PROXY_URDF) for p in proxy_urdf_paths]
+                print(f"[INFO]: {sum(self.motion_has_object_per_motion)} motion(s) with an object proxy "
+                      f"(wrist contact-label rewards with object_motions_only=True apply there only)")
                 num_motions = len(motion_files)
                 num_slots = len(terrain_urdf_paths)
                 num_envs = max(self.num_envs, num_motions)

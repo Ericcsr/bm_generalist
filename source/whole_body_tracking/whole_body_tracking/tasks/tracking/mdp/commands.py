@@ -1127,21 +1127,17 @@ class BindedMultiMotionCommand(MultiMotionCommand):
             self.cfg.adaptive_uniform_ratio / self.bin_count_per_motion
         ).unsqueeze(1) * valid_mask.float()
 
-        # Sample and assign per motion (loop over motions, but probs precomputed)
-        for motion_idx in range(self.motion.num_motions):
-            mask = bound_motion_ids == motion_idx
-            if not mask.any():
-                continue
-            n_m = int(mask.sum())
-            probs = probs_all[motion_idx, : self.bin_count_per_motion[motion_idx]]
-            bins = torch.multinomial(probs, n_m, replacement=True)
-            jitter = sample_uniform(0.0, 1.0, (n_m,), device=self.device)
-            frac = (bins.float() + jitter) / self.bin_count_per_motion[motion_idx]
-            motion_len = self.motion_lengths[motion_idx]
-            time_in_motion = (frac * motion_len.float()).long().clamp(max=motion_len - 1)
-            self.time_steps[env_ids[mask]] = (
-                self.motion.motion_start_idx[motion_idx] + time_in_motion
-            )
+        # Sample per env from its bound motion's bin distribution in ONE batched multinomial (rows are zero
+        # beyond each motion's valid bins, so this matches the former per-motion loop's distribution without
+        # ~num_motions host syncs per call).
+        if n_envs > 0:
+            bins = torch.multinomial(probs_all[bound_motion_ids], 1, replacement=True).squeeze(-1)
+            jitter = sample_uniform(0.0, 1.0, (n_envs,), device=self.device)
+            bin_counts = self.bin_count_per_motion[bound_motion_ids]
+            frac = (bins.float() + jitter) / bin_counts.float()
+            motion_len = self.motion_lengths[bound_motion_ids]
+            time_in_motion = torch.minimum((frac * motion_len.float()).long(), motion_len - 1)
+            self.time_steps[env_ids] = self.motion.motion_start_idx[bound_motion_ids] + time_in_motion
 
         # Metrics: per-env top1 bin from each motion's sampling probs
         top1_bin_idx = probs_all[:, : self.max_bin_count].argmax(dim=1)  # (num_motions,)

@@ -984,3 +984,36 @@ class G1Flat3ptBindedMultiObjectEnvCfg(Tracking3ptBindedMultiObjectEnvCfg):
             "right_elbow_link",
             "right_wrist_yaw_link",
         ]
+
+@configclass
+class G1Flat3ptBindedMultiTerrainObjectUnilateralContact5Seat2BitFreeWristEnvCfg(
+    G1Flat3ptBindedMultiTerrainObjectUnilateralContact5Seat2BitEnvCfg
+):
+    """5-seat 2-bit task + extra WRIST tracking reward on free-space motions (category 2) only.
+
+    Adds pelvis-frame position / orientation tracking of the two VR 3-point hand targets
+    (wrist_yaw_link + vr_3point_body_offset). Observations are unchanged, so checkpoints of the
+    5-seat 2-bit task resume directly (used for the gripper-mass + pick/place free-space finetune).
+
+    Register id: ``Tracking-3pt-Binded-Multi-Terrain-Object-Unilateral-Contact-5Seat-2Bit-FreeWrist-G1-v0``.
+    """
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.disable_height_scanner = True
+        self.spread_flat_envs = True
+        self.spread_flat_spacing = 4.0
+        self.rewards.free_wrist_pos = RewTerm(
+            func=mdp.vr_hand_position_anchor_frame_error_exp,
+            weight=1.0,
+            params={"command_name": "motion", "std": 0.1, "enable_motion_categories": [2]},
+        )
+        self.rewards.free_wrist_ori = RewTerm(
+            func=mdp.vr_hand_orientation_anchor_frame_error_exp,
+            weight=0.5,
+            params={"command_name": "motion", "std": 0.4, "enable_motion_categories": [2]},
+        )
+        # 2026-10-27: wrist contact-label terms only on object-interaction motions (OMOMO + object_terrain).
+        # Terrain motions have no hand labels, so the bilateral match term penalized any hand-terrain contact.
+        self.rewards.contact_label_contact_wrist.params["object_motions_only"] = True
+        self.rewards.contact_label_contact_duration_wrist.params["object_motions_only"] = True

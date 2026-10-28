@@ -306,3 +306,14 @@ gym.register(
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1FlatPPOBindedMultiTerrainObjectRunnerCfg",
     },
 )
+
+
+gym.register(
+    id="Tracking-3pt-Binded-Multi-Terrain-Object-Unilateral-Contact-5Seat-2Bit-FreeWrist-G1-v0",
+    entry_point="whole_body_tracking.envs:ManagerBasedRLEnvWithKinematicObjects",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": flat_env_cfg.G1Flat3ptBindedMultiTerrainObjectUnilateralContact5Seat2BitFreeWristEnvCfg,
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1FlatPPOBindedMultiTerrainObjectRunnerCfg",
+    },
+)

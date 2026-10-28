@@ -66,6 +66,13 @@ parser.add_argument(
     default=False,
     help="When enabled, magic force disappears the first time both wrists make contact with object; object then fully controlled by robot.",
 )
+parser.add_argument(
+    "--robot",
+    type=str,
+    default="default",
+    help="G1 robot model to train with. 'default' = bare G1 (main.urdf); "
+    "'rccu_camera' = G1 + RCCU + PLA backpack + ZED X camera. See G1_ROBOT_CFGS in robots/g1.py.",
+)
 
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
@@ -83,6 +90,25 @@ sys.argv = [sys.argv[0]] + hydra_args
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
+
+# Per-process USD conversion dirs. IsaacLab's default /tmp/IsaacLab/usd_<seconds>_<rand(10000)> collides when
+# several processes (e.g. the 8 ranks of a distributed run) convert ~1000 URDFs in the same second, giving
+# "No contact sensors added to the prim ..." / corrupted *.tmp.usd crashes.
+import itertools as _itertools
+import os as _os
+import isaaclab.sim.converters.asset_converter_base as _acb
+
+_usd_dir_counter = _itertools.count()
+_acb_init_orig = _acb.AssetConverterBase.__init__
+
+
+def _acb_init_isolated(self, cfg):
+    if getattr(cfg, "usd_dir", None) is None:
+        cfg.usd_dir = f"/tmp/IsaacLab/usd_pid{_os.getpid()}_{next(_usd_dir_counter)}"
+    _acb_init_orig(self, cfg)
+
+
+_acb.AssetConverterBase.__init__ = _acb_init_isolated
 
 """Rest everything follows."""
 
@@ -184,6 +210,22 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         if not motion_files:
             motion_files = [args_cli.motion_dir + "/" + x for x in os.listdir(args_cli.motion_dir)]
         env_cfg.commands.motion.motion_files = motion_files
+
+    # optionally swap the G1 robot model (applied last so it overrides any cfg default)
+    from whole_body_tracking.robots.g1 import G1_ROBOT_CFGS
+
+    robot_key = getattr(args_cli, "robot", "default")
+    if robot_key != "default":
+        if robot_key not in G1_ROBOT_CFGS:
+            raise ValueError(f"Unknown --robot '{robot_key}'. Choices: {sorted(G1_ROBOT_CFGS)}")
+        robot_cfg = getattr(getattr(env_cfg.scene, "robot", None), "prim_path", None)
+        prim_path = robot_cfg if robot_cfg is not None else "{ENV_REGEX_NS}/Robot"
+        env_cfg.scene.robot = G1_ROBOT_CFGS[robot_key].replace(prim_path=prim_path)
+        print(
+            f"[INFO]: Using G1 robot model '{robot_key}' "
+            f"({G1_ROBOT_CFGS[robot_key].spawn.asset_path})",
+            flush=True,
+        )
 
     # specify directory for logging experiments
     log_root_path = os.path.join("logs", "rsl_rl", agent_cfg.experiment_name)

@@ -45,6 +45,22 @@ def _zero_reward_for_motion_categories(
     return torch.where(disable, torch.zeros_like(reward), reward)
 
 
+def _zero_reward_for_non_object_motions(env: ManagerBasedRLEnv, command: MotionCommand, reward: torch.Tensor) -> torch.Tensor:
+    """Zero reward rows whose bound motion has no object proxy (``env.cfg.motion_has_object_per_motion``).
+
+    No-op if the flags are missing or length-mismatched.
+    """
+    if not isinstance(command, (MultiMotionCommand, BindedMultiMotionCommand)):
+        return reward
+    motion_ids = getattr(command, "motion_ids", None)
+    has_obj = getattr(env.cfg, "motion_has_object_per_motion", None) or []
+    num_motions = int(getattr(command.motion, "num_motions", len(has_obj)))
+    if motion_ids is None or len(has_obj) != num_motions:
+        return reward
+    obj_t = torch.as_tensor(has_obj, device=env.device, dtype=torch.bool)
+    return torch.where(obj_t[motion_ids], reward, torch.zeros_like(reward))
+
+
 def motion_global_anchor_position_error_exp(env: ManagerBasedRLEnv, command_name: str, std: float) -> torch.Tensor:
     command: MotionCommand = env.command_manager.get_term(command_name)
     error = torch.sum(torch.square(command.anchor_pos_w - command.robot_anchor_pos_w), dim=-1)
@@ -171,6 +187,7 @@ def contact_label_contact_reward(
     threshold: float = 1.0,
     contact_indices: list[int] | None = None,
     disable_motion_categories: list[int] | None = None,
+    object_motions_only: bool = False,
 ) -> torch.Tensor:
     """Reward for matching contact labels: encourage correct links to make contact.
 
@@ -203,6 +220,8 @@ def contact_label_contact_reward(
     # Reward: fraction of links where desired == actual
     match = (desired_contact == actual_contact).float()
     reward = match.mean(dim=-1)
+    if object_motions_only:
+        reward = _zero_reward_for_non_object_motions(env, command, reward)
     return _zero_reward_for_motion_categories(env, command, reward, disable_motion_categories)
 
 
@@ -214,6 +233,7 @@ def contact_label_contact_duration_reward(
     contact_indices: list[int] | None = None,
     max_duration_s: float = 0.5,
     disable_motion_categories: list[int] | None = None,
+    object_motions_only: bool = False,
 ) -> torch.Tensor:
     """Reward for sustained contact when reference expects contact. Encourages persistent contact.
 
@@ -248,6 +268,8 @@ def contact_label_contact_duration_reward(
     in_contact_phase = desired_contact * actual_contact
     reward = (in_contact_phase * duration_bonus).sum(dim=-1) / (in_contact_phase.sum(dim=-1).clamp(min=1e-6))
     reward = torch.where(in_contact_phase.sum(dim=-1) > 0, reward, torch.zeros_like(reward))
+    if object_motions_only:
+        reward = _zero_reward_for_non_object_motions(env, command, reward)
     return _zero_reward_for_motion_categories(env, command, reward, disable_motion_categories)
 
 
@@ -391,3 +413,51 @@ def unilateral_contact_label_contact_duration_reward_seat_support(
     num_desired = desired_contact.clamp(min=0.0)
     reward = (true_positive * duration_bonus) / num_desired.clamp(min=1e-6)
     return torch.where(num_desired > 0, reward, torch.zeros_like(reward))
+
+# ---------------------------------------------------------------------------------------------------------
+# Wrist (VR 3-point hand target) tracking in the ANCHOR (pelvis) frame, optionally restricted to some motion
+# categories (0=terrain, 1=object, 2=free). Both robot and reference hand targets (wrist_yaw_link + the
+# vr_3point_body_offset, i.e. exactly what the policy observes as vr_3point_pos/ori) are expressed in their
+# own anchor frame, so root drift is not penalized here -- only the arm/hand configuration.
+# ---------------------------------------------------------------------------------------------------------
+def _keep_only_motion_categories(env, command, reward, enable_motion_categories):
+    if enable_motion_categories is None:
+        return reward
+    keep = {int(c) for c in enable_motion_categories}
+    return _zero_reward_for_motion_categories(env, command, reward, [c for c in (0, 1, 2) if c not in keep])
+
+
+def vr_hand_position_anchor_frame_error_exp(
+    env: ManagerBasedRLEnv,
+    command_name: str,
+    std: float,
+    point_ids: list[int] | None = None,
+    enable_motion_categories: list[int] | None = None,
+) -> torch.Tensor:
+    command: MotionCommand = env.command_manager.get_term(command_name)
+    ids = [0, 1] if point_ids is None else list(point_ids)
+    n = len(ids)
+    r_inv = quat_inv(command.robot_anchor_quat_w).view(env.num_envs, 1, 4).repeat(1, n, 1)
+    rel_robot = quat_apply(r_inv, command.robot_vr_3point_pos_w[:, ids] - command.robot_anchor_pos_w[:, None, :])
+    f_inv = quat_inv(command.anchor_quat_w).view(env.num_envs, 1, 4).repeat(1, n, 1)
+    rel_ref = quat_apply(f_inv, command.vr_3point_body_pos_w[:, ids] - command.anchor_pos_w[:, None, :])
+    error = torch.sum(torch.square(rel_ref - rel_robot), dim=-1).mean(-1)
+    return _keep_only_motion_categories(env, command, torch.exp(-error / std**2), enable_motion_categories)
+
+
+def vr_hand_orientation_anchor_frame_error_exp(
+    env: ManagerBasedRLEnv,
+    command_name: str,
+    std: float,
+    point_ids: list[int] | None = None,
+    enable_motion_categories: list[int] | None = None,
+) -> torch.Tensor:
+    command: MotionCommand = env.command_manager.get_term(command_name)
+    ids = [0, 1] if point_ids is None else list(point_ids)
+    n = len(ids)
+    r_inv = quat_inv(command.robot_anchor_quat_w).view(env.num_envs, 1, 4).repeat(1, n, 1)
+    q_robot = quat_mul(r_inv, command.robot_vr_3point_quat_w[:, ids])
+    f_inv = quat_inv(command.anchor_quat_w).view(env.num_envs, 1, 4).repeat(1, n, 1)
+    q_ref = quat_mul(f_inv, command.vr_3point_body_quat_w[:, ids])
+    error = (quat_error_magnitude(q_ref, q_robot) ** 2).mean(-1)
+    return _keep_only_motion_categories(env, command, torch.exp(-error / std**2), enable_motion_categories)
